@@ -1,0 +1,1882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Portfolio Optimization — Efficient Frontier</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:           #0a0e14;
+  --bg-panel:     #10151d;
+  --bg-panel-2:   #141b25;
+  --line:         #1f2937;
+  --text:         #e8edf4;
+  --text-dim:     #7c8a9e;
+  --text-faint:   #4a5568;
+  --accent:       #4ad9c4;
+  --accent-dim:   #2a6b62;
+  --gold:         #e8b84a;
+  --red:          #e8584a;
+  --blue:         #5a8fe8;
+  --purple:       #a78bfa;
+  --mono: 'JetBrains Mono', 'SF Mono', 'Roboto Mono', Consolas, monospace;
+  --sans: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+}
+
+*{box-sizing:border-box; margin:0; padding:0;}
+
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+
+::-webkit-scrollbar{width:8px; height:8px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
+
+header{
+  border-bottom:1px solid var(--line);
+  padding:24px 32px;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  flex-wrap:wrap;
+  gap:16px;
+  background:linear-gradient(180deg, var(--bg-panel) 0%, var(--bg) 100%);
+}
+.brand-eyebrow{
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.18em;
+  color:var(--accent);
+  text-transform:uppercase;
+  margin-bottom:6px;
+}
+h1{
+  font-size:26px;
+  font-weight:700;
+  letter-spacing:-0.01em;
+}
+.header-meta{
+  font-family:var(--mono);
+  font-size:12px;
+  color:var(--text-dim);
+  text-align:right;
+  line-height:1.6;
+}
+.header-meta span{color:var(--text);}
+
+.tabs{
+  display:flex;
+  border-bottom:1px solid var(--line);
+  padding:0 32px;
+  gap:4px;
+  overflow-x:auto;
+  background:var(--bg-panel);
+}
+.tab-btn{
+  font-family:var(--mono);
+  font-size:13px;
+  letter-spacing:0.02em;
+  color:var(--text-dim);
+  background:none;
+  border:none;
+  padding:16px 18px;
+  cursor:pointer;
+  border-bottom:2px solid transparent;
+  white-space:nowrap;
+  transition:color 0.15s, border-color 0.15s;
+}
+.tab-btn:hover{color:var(--text);}
+.tab-btn.active{color:var(--accent); border-bottom-color:var(--accent);}
+
+main{padding:32px; max-width:1500px; margin:0 auto;}
+.tab-content{display:none; animation:fadeIn 0.3s ease;}
+.tab-content.active{display:block;}
+@keyframes fadeIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+.grid{display:grid; gap:20px;}
+.grid-2{grid-template-columns:1.3fr 1fr;}
+.grid-3{grid-template-columns:repeat(3, 1fr);}
+.grid-4{grid-template-columns:repeat(4, 1fr);}
+@media(max-width:1300px){
+  .grid-4{grid-template-columns:repeat(2, 1fr);}
+}
+@media(max-width:1000px){
+  .grid-2, .grid-3, .grid-4{grid-template-columns:1fr;}
+}
+
+.panel{
+  background:var(--bg-panel);
+  border:1px solid var(--line);
+  border-radius:6px;
+  padding:20px 22px;
+}
+.panel-title{
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--text-dim);
+  margin-bottom:16px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.panel-title .badge{
+  font-size:10px;
+  padding:2px 8px;
+  border-radius:10px;
+  background:var(--accent-dim);
+  color:var(--accent);
+  letter-spacing:0.05em;
+}
+
+.stat-card{
+  background:var(--bg-panel);
+  border:1px solid var(--line);
+  border-radius:6px;
+  padding:18px 20px;
+  position:relative;
+  overflow:hidden;
+}
+.stat-card.highlight{
+  border-color:var(--accent-dim);
+  background:linear-gradient(135deg, rgba(74,217,196,0.06) 0%, var(--bg-panel) 60%);
+}
+.stat-label{
+  font-family:var(--mono);
+  font-size:10.5px;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--text-dim);
+  margin-bottom:8px;
+}
+.stat-value{
+  font-family:var(--mono);
+  font-size:30px;
+  font-weight:700;
+  letter-spacing:-0.02em;
+}
+.stat-value.accent{color:var(--accent);}
+.stat-value.gold{color:var(--gold);}
+.stat-value.red{color:var(--red);}
+.stat-sub{
+  font-family:var(--mono);
+  font-size:11.5px;
+  color:var(--text-faint);
+  margin-top:6px;
+}
+
+.portfolio-picker{
+  display:grid;
+  grid-template-columns:repeat(4, 1fr);
+  gap:16px;
+  margin-bottom:24px;
+}
+@media(max-width:1100px){.portfolio-picker{grid-template-columns:repeat(2, 1fr);}}
+@media(max-width:600px){.portfolio-picker{grid-template-columns:1fr;}}
+.pp-card{
+  background:var(--bg-panel);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:20px;
+  cursor:default;
+  position:relative;
+}
+.pp-card.lead{
+  border-color:var(--accent);
+  box-shadow:0 0 0 1px var(--accent), 0 0 24px rgba(74,217,196,0.12);
+}
+.pp-card.lead::before{
+  content:'OPTIMAL';
+  position:absolute;
+  top:14px; right:14px;
+  font-family:var(--mono);
+  font-size:9.5px;
+  letter-spacing:0.12em;
+  color:var(--accent);
+  background:rgba(74,217,196,0.1);
+  padding:3px 8px;
+  border-radius:3px;
+}
+.pp-card.lead-purple{
+  border-color:var(--purple);
+  box-shadow:0 0 0 1px var(--purple), 0 0 24px rgba(167,139,250,0.12);
+}
+.pp-card.lead-purple::before{
+  content:'HIGHEST RETURN';
+  position:absolute;
+  top:14px; right:14px;
+  font-family:var(--mono);
+  font-size:9.5px;
+  letter-spacing:0.12em;
+  color:var(--purple);
+  background:rgba(167,139,250,0.1);
+  padding:3px 8px;
+  border-radius:3px;
+}
+.pp-name{font-size:15px; font-weight:600; margin-bottom:4px;}
+.pp-sub{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-bottom:14px;}
+.pp-metrics{display:flex; gap:18px;}
+.pp-metric-label{font-family:var(--mono); font-size:9.5px; color:var(--text-faint); letter-spacing:0.08em; text-transform:uppercase;}
+.pp-metric-value{font-family:var(--mono); font-size:18px; font-weight:700; margin-top:2px;}
+
+.chart-box{position:relative; width:100%;}
+.chart-box.h-340{height:340px;}
+.chart-box.h-300{height:300px;}
+.chart-box.h-380{height:380px;}
+.chart-box.h-420{height:420px;}
+.chart-box.h-260{height:260px;}
+.chart-box.h-220{height:220px;}
+
+/* ───────── SECTION DIVIDER ───────── */
+.section-divider{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin:30px 0 16px 0;
+}
+.section-divider span{
+  font-family:var(--mono);
+  font-size:11.5px;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:var(--text-dim);
+  white-space:nowrap;
+}
+.section-divider::after{
+  content:'';
+  flex:1;
+  height:1px;
+  background:var(--line);
+}
+
+/* ───────── PORTFOLIO SHEET CARD (3-up row) ───────── */
+.psheet-card{
+  background:var(--bg-panel);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:18px 18px 20px 18px;
+  display:flex;
+  flex-direction:column;
+}
+.psheet-card.lead{
+  border-color:var(--gold);
+  box-shadow:0 0 0 1px var(--gold), 0 0 22px rgba(232,184,74,0.10);
+}
+.psheet-card.lead-purple{
+  border-color:var(--purple);
+  box-shadow:0 0 0 1px var(--purple), 0 0 22px rgba(167,139,250,0.10);
+}
+.psheet-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  margin-bottom:4px;
+}
+.psheet-name{font-size:14.5px; font-weight:700;}
+.psheet-badge{
+  font-family:var(--mono); font-size:9px; letter-spacing:0.1em;
+  padding:2px 7px; border-radius:3px; white-space:nowrap;
+}
+.psheet-sub{font-family:var(--mono); font-size:10.5px; color:var(--text-faint); margin-bottom:12px;}
+.psheet-stats{display:flex; gap:14px; margin-bottom:14px;}
+.psheet-stat-label{font-family:var(--mono); font-size:9px; color:var(--text-faint); letter-spacing:0.06em; text-transform:uppercase;}
+.psheet-stat-value{font-family:var(--mono); font-size:16px; font-weight:700; margin-top:2px;}
+.psheet-legend{
+  display:flex; flex-wrap:wrap; gap:5px 10px; margin-top:12px;
+  font-family:var(--mono); font-size:10px; color:var(--text-dim);
+}
+.psheet-legend-item{display:flex; align-items:center; gap:5px;}
+.psheet-legend-dot{width:7px; height:7px; border-radius:50%; flex-shrink:0;}
+
+table.weights-table{width:100%; border-collapse:collapse; font-family:var(--mono); font-size:12.5px;}
+table.weights-table th{
+  text-align:left;
+  color:var(--text-faint);
+  font-weight:500;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  font-size:10px;
+  padding:0 10px 10px 0;
+  border-bottom:1px solid var(--line);
+}
+table.weights-table td{padding:7px 10px 7px 0; border-bottom:1px solid rgba(31,41,55,0.5);}
+table.weights-table tr:last-child td{border-bottom:none;}
+.weight-bar-track{background:var(--bg-panel-2); border-radius:3px; height:6px; width:100%; overflow:hidden;}
+.weight-bar-fill{height:100%; border-radius:3px;}
+.ticker-dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:8px;}
+
+.legend-row{display:flex; gap:18px; flex-wrap:wrap; margin-top:14px; font-family:var(--mono); font-size:11.5px; color:var(--text-dim);}
+.legend-item{display:flex; align-items:center; gap:6px;}
+.legend-swatch{width:10px; height:10px; border-radius:2px;}
+
+.toggle-group{display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;}
+.toggle-btn{
+  font-family:var(--mono);
+  font-size:11.5px;
+  padding:7px 14px;
+  border-radius:5px;
+  border:1px solid var(--line);
+  background:var(--bg-panel-2);
+  color:var(--text-dim);
+  cursor:pointer;
+  transition:all 0.15s;
+}
+.toggle-btn.active{border-color:var(--accent); color:var(--accent); background:rgba(74,217,196,0.08);}
+
+.insight{
+  font-size:13px;
+  line-height:1.65;
+  color:var(--text-dim);
+}
+.insight strong{color:var(--text); font-weight:600;}
+.insight .accent-text{color:var(--accent); font-weight:600;}
+
+footer{
+  text-align:center;
+  padding:28px;
+  font-family:var(--mono);
+  font-size:10.5px;
+  color:var(--text-faint);
+  letter-spacing:0.04em;
+}
+
+/* ───────── UPLOAD GATE ───────── */
+#upload-view{
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:32px;
+}
+.upload-shell{
+  max-width:640px;
+  width:100%;
+}
+.upload-sub{
+  text-align:center;
+  color:var(--text-dim);
+  font-size:13.5px;
+  line-height:1.6;
+  margin-bottom:32px;
+}
+.dropzone{
+  border:1.5px dashed var(--line);
+  border-radius:10px;
+  padding:48px 32px;
+  text-align:center;
+  cursor:pointer;
+  transition:border-color 0.2s, background 0.2s;
+  background:var(--bg-panel);
+}
+.dropzone:hover, .dropzone.drag-over{
+  border-color:var(--accent);
+  background:rgba(74,217,196,0.04);
+}
+.dropzone-icon{
+  font-size:28px;
+  color:var(--accent);
+  margin-bottom:12px;
+  font-weight:300;
+}
+.dropzone-text{
+  font-size:15px;
+  margin-bottom:10px;
+}
+.dropzone-link{
+  color:var(--accent);
+  text-decoration:underline;
+}
+.dropzone-hint{
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--text-faint);
+  line-height:1.6;
+}
+.upload-options{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  margin-top:22px;
+  font-family:var(--mono);
+  font-size:12px;
+  color:var(--text-dim);
+}
+.upload-options input{
+  width:64px;
+  background:var(--bg-panel-2);
+  border:1px solid var(--line);
+  color:var(--text);
+  border-radius:4px;
+  padding:6px 8px;
+  font-family:var(--mono);
+  font-size:12px;
+  text-align:right;
+}
+#upload-status{
+  margin-top:24px;
+  text-align:center;
+  font-family:var(--mono);
+  font-size:12.5px;
+  color:var(--text-dim);
+  min-height:20px;
+}
+#upload-status.error{ color:var(--red); }
+#upload-status.processing{ color:var(--accent); }
+.upload-format-example{
+  display:flex;
+  gap:20px;
+  margin-top:36px;
+  justify-content:center;
+}
+.format-col{ flex:1; max-width:260px; }
+.format-label{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:var(--text-faint);
+  margin-bottom:8px;
+  text-align:center;
+}
+table.format-table{
+  width:100%;
+  border-collapse:collapse;
+  font-family:var(--mono);
+  font-size:10.5px;
+  border:1px solid var(--line);
+  border-radius:4px;
+  overflow:hidden;
+}
+table.format-table th{
+  background:var(--bg-panel-2);
+  color:var(--text-dim);
+  padding:6px 8px;
+  text-align:left;
+  font-weight:500;
+}
+table.format-table td{
+  padding:6px 8px;
+  color:var(--text-faint);
+  border-top:1px solid var(--line);
+}
+
+/* ───────── CHANGE FILE BUTTON ───────── */
+.change-file-btn{
+  margin-top:8px;
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--text-dim);
+  background:var(--bg-panel-2);
+  border:1px solid var(--line);
+  border-radius:5px;
+  padding:6px 12px;
+  cursor:pointer;
+  transition:border-color 0.15s, color 0.15s;
+}
+.change-file-btn:hover{
+  border-color:var(--accent);
+  color:var(--accent);
+}
+
+/* ───────── PROCESSING OVERLAY ───────── */
+#processing-overlay{
+  position:fixed;
+  inset:0;
+  background:rgba(10,14,20,0.92);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:1000;
+  flex-direction:column;
+  gap:18px;
+}
+#processing-overlay.active{ display:flex; }
+.spinner{
+  width:36px; height:36px;
+  border:3px solid var(--line);
+  border-top-color:var(--accent);
+  border-radius:50%;
+  animation:spin 0.8s linear infinite;
+}
+@keyframes spin{ to{ transform:rotate(360deg); } }
+#processing-status{
+  font-family:var(--mono);
+  font-size:13px;
+  color:var(--text-dim);
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ UPLOAD GATE ═══════════ -->
+<div id="upload-view">
+  <div class="upload-shell">
+    <div class="brand-eyebrow" style="text-align:center;">Quantitative Portfolio Analysis</div>
+    <h1 style="text-align:center; margin-bottom:8px;">Efficient Frontier Dashboard</h1>
+    <p class="upload-sub">Upload a price history file to generate the efficient frontier, optimal portfolio weights, and performance comparison — entirely in your browser. Nothing is uploaded to a server.</p>
+
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="file-input" accept=".xlsx,.xls,.csv" hidden>
+      <div class="dropzone-icon">↑</div>
+      <div class="dropzone-text">Drop your .xlsx or .csv file here, or <span class="dropzone-link">browse</span></div>
+      <div class="dropzone-hint">Daily prices, either format: <strong>Ticker, Date, Close</strong> (long) or <strong>Date</strong> + one column per ticker (wide)</div>
+    </div>
+
+    <div class="upload-options">
+      <label for="rf-input">Annual risk-free rate</label>
+      <input type="number" id="rf-input" value="1.2" step="0.1" min="0" max="20"> %
+    </div>
+
+    <div id="upload-status"></div>
+
+    <div class="upload-format-example">
+      <div class="format-col">
+        <div class="format-label">Long format</div>
+        <table class="format-table"><tr><th>Ticker</th><th>Date</th><th>Close</th></tr><tr><td>AAPL</td><td>2024-01-02</td><td>185.64</td></tr><tr><td>MSFT</td><td>2024-01-02</td><td>376.04</td></tr></table>
+      </div>
+      <div class="format-col">
+        <div class="format-label">Wide format</div>
+        <table class="format-table"><tr><th>Date</th><th>AAPL</th><th>MSFT</th></tr><tr><td>2024-01-02</td><td>185.64</td><td>376.04</td></tr></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ PROCESSING OVERLAY ═══════════ -->
+<div id="processing-overlay">
+  <div class="spinner"></div>
+  <div id="processing-status">Parsing file...</div>
+</div>
+
+<!-- ═══════════ DASHBOARD (hidden until a file is loaded) ═══════════ -->
+<div id="app-view" style="display:none;">
+
+<header>
+  <div>
+    <div class="brand-eyebrow">Quantitative Portfolio Analysis</div>
+    <h1 id="header-title">Efficient Frontier</h1>
+  </div>
+  <div class="header-meta">
+    <div>Sample period <span id="header-dates">—</span></div>
+    <div>Trading days <span id="header-ndays">—</span></div>
+    <div>Risk-free rate <span id="header-rf">—</span> annualized</div>
+    <button class="change-file-btn" id="change-file-btn">↻ Load different file</button>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="sheet">Frontier &amp; Portfolios</button>
+  <button class="tab-btn" data-tab="compare">Comparison</button>
+  <button class="tab-btn" data-tab="correlation">Correlation</button>
+</nav>
+
+<main>
+
+  <section class="tab-content active" id="tab-sheet">
+
+    <!-- ROW 1: Top-line stat cards for all 3 portfolios -->
+    <div class="portfolio-picker" id="overview-cards"></div>
+
+    <!-- ROW 2: Full-width efficient frontier chart -->
+    <div class="panel" style="margin-bottom:20px;">
+      <div class="panel-title">Efficient Frontier <span class="badge" id="frontier-count-badge">Optimized</span></div>
+      <div class="chart-box h-380"><canvas id="chart-frontier-main"></canvas></div>
+      <div class="legend-row">
+        <div class="legend-item"><span class="legend-swatch" style="background:#2a3441;"></span>Random portfolios (4,000)</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#4ad9c4;"></span>Efficient frontier</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#e8b84a;"></span>Max Sharpe</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#a78bfa;"></span>Highest return</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#5a8fe8;"></span>Min variance</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#e8584a;"></span>Equal weight</div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:24px;">
+      <div class="panel-title">Reading the Frontier</div>
+      <div class="insight" id="overview-insight"></div>
+    </div>
+
+    <!-- ROW 3: Three portfolios side by side, each with pie chart + stats -->
+    <div class="section-divider">
+      <span>Highlighted Portfolios on the Frontier</span>
+    </div>
+
+    <div class="grid grid-4" id="portfolio-sheet-row"></div>
+
+    <!-- ROW 4: Per-holding risk/return + stats table -->
+    <div class="section-divider">
+      <span>Individual Holdings</span>
+    </div>
+
+    <div class="grid grid-3">
+      <div class="panel">
+        <div class="panel-title">Per-Holding Risk / Return</div>
+        <div class="chart-box h-260"><canvas id="chart-stock-scatter"></canvas></div>
+      </div>
+      <div class="panel" style="grid-column:span 2;">
+        <div class="panel-title">Individual Holding Statistics <span class="badge">Annualized</span></div>
+        <div style="max-height:260px; overflow-y:auto;">
+          <table class="weights-table" id="stock-stats-table">
+            <thead><tr><th>Ticker</th><th>Return</th><th>Std Dev</th><th>Sharpe</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-content" id="tab-compare">
+    <div class="toggle-group" id="compare-toggles"></div>
+
+    <div class="panel">
+      <div class="panel-title">Cumulative Growth of $100</div>
+      <div class="chart-box h-420"><canvas id="chart-compare-growth"></canvas></div>
+    </div>
+
+    <div class="grid grid-2" style="margin-top:20px;">
+      <div class="panel">
+        <div class="panel-title">Drawdown</div>
+        <div class="chart-box h-300"><canvas id="chart-compare-drawdown"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Rolling 3-Month Sharpe Ratio</div>
+        <div class="chart-box h-300"><canvas id="chart-compare-rollsharpe"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:20px;">
+      <div class="panel-title">Performance Summary</div>
+      <table class="weights-table" id="compare-table">
+        <thead><tr><th>Portfolio</th><th>Total Return</th><th>Ann. Return</th><th>Ann. Std Dev</th><th>Sharpe</th><th>Max Drawdown</th><th>Skew</th><th>Kurtosis</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="panel" style="margin-top:20px;">
+      <div class="panel-title">Equal Weight vs. Optimized — What Changed</div>
+      <div class="insight" id="compare-insight"></div>
+    </div>
+  </section>
+
+  <section class="tab-content" id="tab-correlation">
+    <div class="panel">
+      <div class="panel-title">Correlation Matrix <span class="badge">Daily Returns</span></div>
+      <div id="corr-heatmap-wrap" style="overflow-x:auto;">
+        <div id="corr-heatmap"></div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:20px;">
+      <div class="panel-title">Diversification Insight</div>
+      <div class="insight" id="corr-insight"></div>
+    </div>
+  </section>
+
+</main>
+
+<footer>Quantitative analysis generated from daily price data &middot; Monte Carlo simulation (4,000 portfolios) + Browser-based mean-variance optimization &middot; Not investment advice</footer>
+
+</div> <!-- /app-view -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// PORTFOLIO MATH ENGINE — pure JS port of the Python analysis pipeline
+// Linear algebra is hand-rolled (no numpy), kept simple since n <= ~50 holdings
+// ═══════════════════════════════════════════════════════════════════════
+
+const TRADING_DAYS = 252;
+
+// ───────── LINEAR ALGEBRA HELPERS ─────────
+
+function matVec(M, v) {
+  const n = v.length;
+  const out = new Array(n).fill(0);
+  for (let i = 0; i < n; i++) {
+    let s = 0;
+    const row = M[i];
+    for (let j = 0; j < n; j++) s += row[j] * v[j];
+    out[i] = s;
+  }
+  return out;
+}
+
+function dot(a, b) {
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += a[i] * b[i];
+  return s;
+}
+
+function quadForm(w, M) {
+  return dot(w, matVec(M, w));
+}
+
+// ───────── DATA PIPELINE ─────────
+
+function parseToWidePrices(rows) {
+  if (!rows.length) throw new Error("File contains no data rows.");
+
+  const keys = Object.keys(rows[0]).map(k => k.trim());
+  const lowerKeys = keys.map(k => k.toLowerCase());
+
+  const hasTicker = lowerKeys.includes('ticker') || lowerKeys.includes('symbol');
+  const dateKey = keys[lowerKeys.indexOf('date')] ?? keys.find(k => k.toLowerCase().includes('date'));
+
+  if (!dateKey) throw new Error("Couldn't find a 'Date' column in the file.");
+
+  if (hasTicker) {
+    const tickerKey = keys[lowerKeys.indexOf('ticker')] !== undefined && lowerKeys.indexOf('ticker') >= 0
+      ? keys[lowerKeys.indexOf('ticker')] : keys[lowerKeys.indexOf('symbol')];
+    const closeKey = keys.find(k => ['close','adj close','adjclose','price'].includes(k.toLowerCase()))
+                   ?? keys.find(k => k.toLowerCase().includes('close'))
+                   ?? keys.find(k => k.toLowerCase().includes('price'));
+    if (!closeKey) throw new Error("Couldn't find a Close/Price column in the file.");
+
+    const byDate = new Map();
+    const tickerSet = new Set();
+
+    for (const row of rows) {
+      const ticker = String(row[tickerKey]).trim();
+      if (!ticker || ticker === 'undefined') continue;
+      const dateVal = row[dateKey];
+      const dateStr = normalizeDate(dateVal);
+      const price = parseFloat(row[closeKey]);
+      if (!dateStr || isNaN(price)) continue;
+      tickerSet.add(ticker);
+      if (!byDate.has(dateStr)) byDate.set(dateStr, {});
+      byDate.get(dateStr)[ticker] = price;
+    }
+
+    const tickers = Array.from(tickerSet).sort();
+    const dates = Array.from(byDate.keys()).sort();
+
+    const prices = [];
+    const cleanDates = [];
+    for (const d of dates) {
+      const rowObj = byDate.get(d);
+      if (tickers.every(t => rowObj[t] !== undefined)) {
+        prices.push(tickers.map(t => rowObj[t]));
+        cleanDates.push(d);
+      }
+    }
+    return { tickers, dates: cleanDates, prices };
+
+  } else {
+    const tickers = keys.filter(k => k !== dateKey);
+    const dates = [];
+    const prices = [];
+    for (const row of rows) {
+      const dateStr = normalizeDate(row[dateKey]);
+      if (!dateStr) continue;
+      const vals = tickers.map(t => parseFloat(row[t]));
+      if (vals.some(v => isNaN(v))) continue;
+      dates.push(dateStr);
+      prices.push(vals);
+    }
+    const order = dates.map((d,i)=>i).sort((a,b)=> dates[a] < dates[b] ? -1 : 1);
+    return {
+      tickers,
+      dates: order.map(i=>dates[i]),
+      prices: order.map(i=>prices[i]),
+    };
+  }
+}
+
+function normalizeDate(val) {
+  if (val == null || val === '') return null;
+  if (val instanceof Date) return val.toISOString().slice(0,10);
+  if (typeof val === 'number') {
+    const epoch = new Date(Date.UTC(1899, 11, 30));
+    const d = new Date(epoch.getTime() + val * 86400000);
+    return d.toISOString().slice(0,10);
+  }
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0,10);
+}
+
+function computeDailyReturns(prices) {
+  const T = prices.length, N = prices[0].length;
+  const returns = [];
+  for (let t = 1; t < T; t++) {
+    const row = new Array(N);
+    for (let j = 0; j < N; j++) {
+      row[j] = prices[t][j] / prices[t-1][j] - 1;
+    }
+    returns.push(row);
+  }
+  return returns;
+}
+
+function meanVec(returns) {
+  const T = returns.length, N = returns[0].length;
+  const mean = new Array(N).fill(0);
+  for (let t = 0; t < T; t++) for (let j = 0; j < N; j++) mean[j] += returns[t][j];
+  for (let j = 0; j < N; j++) mean[j] /= T;
+  return mean;
+}
+
+function covMatrix(returns, mean) {
+  const T = returns.length, N = returns[0].length;
+  const cov = Array.from({length:N}, () => new Array(N).fill(0));
+  for (let t = 0; t < T; t++) {
+    const dev = returns[t].map((v,j) => v - mean[j]);
+    for (let i = 0; i < N; i++) {
+      for (let j = i; j < N; j++) {
+        cov[i][j] += dev[i] * dev[j];
+      }
+    }
+  }
+  const denom = T - 1;
+  for (let i = 0; i < N; i++) {
+    for (let j = i; j < N; j++) {
+      cov[i][j] /= denom;
+      cov[j][i] = cov[i][j];
+    }
+  }
+  return cov;
+}
+
+function corrMatrix(cov) {
+  const N = cov.length;
+  const std = cov.map((row,i) => Math.sqrt(row[i]));
+  const corr = Array.from({length:N}, () => new Array(N).fill(0));
+  for (let i = 0; i < N; i++) {
+    for (let j = 0; j < N; j++) {
+      corr[i][j] = cov[i][j] / (std[i] * std[j]);
+    }
+  }
+  return corr;
+}
+
+// ───────── PORTFOLIO STATS ─────────
+
+function portStats(w, meanAnnual, covAnnual, riskFree) {
+  const r = dot(w, meanAnnual);
+  const variance = quadForm(w, covAnnual);
+  const s = Math.sqrt(Math.max(variance, 0));
+  const sh = (r - riskFree) / s;
+  return { return: r, std: s, sharpe: sh };
+}
+
+// ───────── OPTIMIZATION: PROJECTION ONTO SIMPLEX ─────────
+
+function projectToSimplex(v) {
+  const n = v.length;
+  const u = v.slice().sort((a,b) => b - a);
+  const cssv = [];
+  let sum = 0;
+  for (let i = 0; i < n; i++) { sum += u[i]; cssv.push(sum); }
+  let rho = -1;
+  for (let i = n - 1; i >= 0; i--) {
+    if (u[i] + (1 - cssv[i]) / (i + 1) > 0) { rho = i; break; }
+  }
+  const theta = (cssv[rho] - 1) / (rho + 1);
+  return v.map(vi => Math.max(vi - theta, 0));
+}
+
+/**
+ * Projects onto {w : w_i >= minW for all i, sum(w) = 1}.
+ * Equivalent to projecting (w - minW) onto the standard simplex scaled by
+ * (1 - n*minW), then adding minW back. Requires n*minW < 1.
+ */
+function projectToSimplexWithFloor(v, minW) {
+  const n = v.length;
+  const budget = 1 - n * minW; // remaining mass to distribute above the floor
+  const shifted = v.map(x => x - minW);
+  const projected = projectToSimplex(shifted.map(x => x / budget)).map(x => x * budget);
+  return projected.map(x => x + minW);
+}
+
+function optimizePortfolio(meanAnnual, covAnnual, riskFree, objective, iters = 4000) {
+  const n = meanAnnual.length;
+  let w = new Array(n).fill(1/n);
+
+  let lr = 0.05;
+  let velocity = new Array(n).fill(0);
+  const momentum = 0.85;
+
+  function gradVariance(w) {
+    const cw = matVec(covAnnual, w);
+    return cw.map(x => 2 * x);
+  }
+
+  function gradNegSharpe(w) {
+    const r = dot(w, meanAnnual);
+    const variance = quadForm(w, covAnnual);
+    const s = Math.sqrt(Math.max(variance, 1e-12));
+    const cw = matVec(covAnnual, w);
+    const grad = new Array(n);
+    for (let i = 0; i < n; i++) {
+      grad[i] = meanAnnual[i] / s - (r - riskFree) * cw[i] / (s*s*s);
+    }
+    return grad.map(g => -g);
+  }
+
+  for (let it = 0; it < iters; it++) {
+    const grad = objective === 'sharpe' ? gradNegSharpe(w) : gradVariance(w);
+    const gnorm = Math.sqrt(dot(grad, grad)) || 1;
+    const stepLr = lr / Math.sqrt(1 + it * 0.01);
+    for (let i = 0; i < n; i++) {
+      velocity[i] = momentum * velocity[i] - stepLr * grad[i] / gnorm;
+      w[i] = w[i] + velocity[i];
+    }
+    w = projectToSimplex(w);
+  }
+  return w;
+}
+
+// ───────── ROUNDING TO 1% INCREMENTS ─────────
+
+/**
+ * Optimizes weights to maximize REALIZED cumulative return over the actual
+ * historical daily-return path (not expected/annualized return), subject to
+ * every holding keeping at least minW weight. This is a different objective
+ * from Sharpe/variance: it directly maximizes prod_t(1 + w.r_t) - 1, using
+ * the exact historical sequence of returns (so path/compounding effects and
+ * any single big day matter, unlike the mean-variance framework which only
+ * sees the average and covariance).
+ */
+function optimizeMaxCumulativeReturn(returns, minW, iters = 3000) {
+  const T = returns.length, n = returns[0].length;
+  let w = new Array(n).fill(1/n);
+  w = projectToSimplexWithFloor(w, minW);
+
+  let lr = 0.08;
+  let velocity = new Array(n).fill(0);
+  const momentum = 0.85;
+
+  // Gradient of log(cumulative growth) w.r.t. w, which shares the same
+  // maximizer as cumulative return itself (log is monotonic) and is far
+  // more numerically stable to differentiate over many compounding days:
+  //   log(growth) = sum_t log(1 + w.r_t)
+  //   d/dw_i = sum_t r_it / (1 + w.r_t)
+  function gradNegLogGrowth(w) {
+    const grad = new Array(n).fill(0);
+    for (let t = 0; t < T; t++) {
+      const row = returns[t];
+      let denom = 1;
+      for (let i = 0; i < n; i++) denom += w[i] * row[i];
+      if (denom <= 1e-6) denom = 1e-6; // guard against a ruinous (>100% loss) step
+      for (let i = 0; i < n; i++) grad[i] += row[i] / denom;
+    }
+    return grad.map(g => -g); // negate: we minimize the negative to maximize growth
+  }
+
+  for (let it = 0; it < iters; it++) {
+    const grad = gradNegLogGrowth(w);
+    const gnorm = Math.sqrt(dot(grad, grad)) || 1;
+    const stepLr = lr / Math.sqrt(1 + it * 0.01);
+    for (let i = 0; i < n; i++) {
+      velocity[i] = momentum * velocity[i] - stepLr * grad[i] / gnorm;
+      w[i] = w[i] + velocity[i];
+    }
+    w = projectToSimplexWithFloor(w, minW);
+  }
+  return w;
+}
+
+function roundToPct(w, meanAnnual, covAnnual, riskFree, objective) {
+  const n = w.length;
+  let pct = w.map(x => Math.floor(x * 100));
+  let total = pct.reduce((a,b)=>a+b, 0);
+  let remainder = 100 - total;
+
+  function score(pctArr) {
+    const wArr = pctArr.map(x => x/100);
+    if (objective === 'sharpe') {
+      return portStats(wArr, meanAnnual, covAnnual, riskFree).sharpe;
+    } else {
+      return -quadForm(wArr, covAnnual);
+    }
+  }
+
+  if (remainder > 0) {
+    for (let k = 0; k < remainder; k++) {
+      let bestI = -1, bestScore = -Infinity;
+      for (let i = 0; i < n; i++) {
+        const trial = pct.slice(); trial[i] += 1;
+        const s = score(trial);
+        if (s > bestScore) { bestScore = s; bestI = i; }
+      }
+      pct[bestI] += 1;
+    }
+  } else if (remainder < 0) {
+    for (let k = 0; k < -remainder; k++) {
+      let bestI = -1, bestScore = -Infinity;
+      for (let i = 0; i < n; i++) {
+        if (pct[i] <= 0) continue;
+        const trial = pct.slice(); trial[i] -= 1;
+        const s = score(trial);
+        if (s > bestScore) { bestScore = s; bestI = i; }
+      }
+      pct[bestI] -= 1;
+    }
+  }
+  return pct.map(x => x/100);
+}
+
+function roundToPctNeutral(w) {
+  const n = w.length;
+  const scaled = w.map(x => x * 100);
+  const floored = scaled.map(Math.floor);
+  const remainders = scaled.map((x,i) => x - floored[i]);
+  const total = floored.reduce((a,b)=>a+b, 0);
+  const deficit = 100 - total;
+  const order = remainders.map((r,i)=>[r,i]).sort((a,b)=>b[0]-a[0]).map(p=>p[1]);
+  const pct = floored.slice();
+  for (let i = 0; i < deficit; i++) pct[order[i]] += 1;
+  return pct.map(x => x/100);
+}
+
+/**
+ * Computes realized cumulative return (total, not annualized) for weights w
+ * applied to the given daily-return matrix, assuming fixed weights held
+ * constant (rebalanced) over the whole period.
+ */
+function cumulativeReturnOf(returns, w) {
+  let growth = 1;
+  for (let t = 0; t < returns.length; t++) {
+    growth *= (1 + dot(returns[t], w));
+  }
+  return growth - 1;
+}
+
+/**
+ * Rounds weights to 1% increments while guaranteeing every holding keeps at
+ * least 1%, and greedily reassigns the leftover/removed points to whichever
+ * holding most improves realized cumulative return. Unlike roundToPct (used
+ * for Sharpe/variance), this enforces a hard floor: no holding can ever be
+ * floored to 0%, since the whole point of this portfolio is "every position
+ * gets a meaningful stake".
+ */
+function roundToPctMaxReturn(w, returns) {
+  const n = w.length;
+  // start every holding at its floor (1%), then floor the *excess* above that
+  let pct = w.map(x => Math.max(1, Math.floor(x * 100)));
+  let total = pct.reduce((a,b)=>a+b, 0);
+  let remainder = 100 - total;
+
+  function score(pctArr) {
+    return cumulativeReturnOf(returns, pctArr.map(x => x/100));
+  }
+
+  if (remainder > 0) {
+    for (let k = 0; k < remainder; k++) {
+      let bestI = -1, bestScore = -Infinity;
+      for (let i = 0; i < n; i++) {
+        const trial = pct.slice(); trial[i] += 1;
+        const s = score(trial);
+        if (s > bestScore) { bestScore = s; bestI = i; }
+      }
+      pct[bestI] += 1;
+    }
+  } else if (remainder < 0) {
+    // Only take points from holdings currently above the 1% floor, so no
+    // one ever drops below the guaranteed minimum.
+    for (let k = 0; k < -remainder; k++) {
+      let bestI = -1, bestScore = -Infinity;
+      for (let i = 0; i < n; i++) {
+        if (pct[i] <= 1) continue;
+        const trial = pct.slice(); trial[i] -= 1;
+        const s = score(trial);
+        if (s > bestScore) { bestScore = s; bestI = i; }
+      }
+      pct[bestI] -= 1;
+    }
+  }
+  return pct.map(x => x/100);
+}
+
+// ───────── MONTE CARLO ─────────
+
+function dirichletSample(n, rng) {
+  const x = new Array(n);
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    const u = Math.max(rng(), 1e-12);
+    x[i] = -Math.log(u);
+    sum += x[i];
+  }
+  return x.map(v => v / sum);
+}
+
+function roundRowToPct(w) {
+  const n = w.length;
+  const scaled = w.map(x => x * 100);
+  const floored = scaled.map(Math.floor);
+  const remainders = scaled.map((x,i) => x - floored[i]);
+  const total = floored.reduce((a,b)=>a+b, 0);
+  const deficit = 100 - total;
+  const order = remainders.map((r,i)=>[r,i]).sort((a,b)=>b[0]-a[0]).map(p=>p[1]);
+  const pct = floored.slice();
+  for (let i = 0; i < deficit; i++) pct[order[i]] += 1;
+  return pct.map(x => x/100);
+}
+
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = (t + Math.imul(t ^ t >>> 7, 61 | t)) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function monteCarloCloud(meanAnnual, covAnnual, riskFree, n, count = 4000) {
+  const rng = mulberry32(42);
+  const stds = [], rets = [], sharpes = [];
+  for (let k = 0; k < count; k++) {
+    const wRaw = dirichletSample(n, rng);
+    const w = roundRowToPct(wRaw);
+    const s = portStats(w, meanAnnual, covAnnual, riskFree);
+    stds.push(s.std); rets.push(s.return); sharpes.push(s.sharpe);
+  }
+  return { std: stds, return: rets, sharpe: sharpes };
+}
+
+// ───────── EFFICIENT FRONTIER ─────────
+
+function optimizeForTargetReturn(meanAnnual, covAnnual, targetReturn, iters = 1500) {
+  const n = meanAnnual.length;
+  let w = new Array(n).fill(1/n);
+  let lr = 0.05;
+  let velocity = new Array(n).fill(0);
+  const momentum = 0.8;
+
+  function projectReturnAndSimplex(w) {
+    let x = projectToSimplex(w);
+    for (let i = 0; i < 25; i++) {
+      const r = dot(x, meanAnnual);
+      const diff = targetReturn - r;
+      if (Math.abs(diff) < 1e-6) break;
+      const mnorm = dot(meanAnnual, meanAnnual) || 1;
+      const step = meanAnnual.map(m => m * diff / mnorm);
+      x = x.map((xi, idx) => xi + step[idx]);
+      x = projectToSimplex(x);
+    }
+    return x;
+  }
+
+  w = projectReturnAndSimplex(w);
+
+  for (let it = 0; it < iters; it++) {
+    const cw = matVec(covAnnual, w);
+    const grad = cw.map(x => 2*x);
+    const gnorm = Math.sqrt(dot(grad,grad)) || 1;
+    const stepLr = lr / Math.sqrt(1 + it*0.01);
+    for (let i = 0; i < n; i++) {
+      velocity[i] = momentum*velocity[i] - stepLr*grad[i]/gnorm;
+      w[i] = w[i] + velocity[i];
+    }
+    w = projectReturnAndSimplex(w);
+  }
+  return w;
+}
+
+function buildEfficientFrontier(meanAnnual, covAnnual, riskFree, minVarReturn, maxReturn, points = 30) {
+  const frontier = [];
+  for (let k = 0; k < points; k++) {
+    const t = k / (points - 1);
+    const targetReturn = minVarReturn + t * (maxReturn * 0.98 - minVarReturn);
+    let w = optimizeForTargetReturn(meanAnnual, covAnnual, targetReturn, 1500);
+    w = roundRowToPct(w);
+    const stats = portStats(w, meanAnnual, covAnnual, riskFree);
+    frontier.push(stats);
+  }
+  const seen = new Set();
+  return frontier
+    .filter(p => { const k = p.std.toFixed(4); if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a,b) => a.std - b.std);
+}
+
+// ───────── RISK CONTRIBUTION ─────────
+
+function riskContribution(w, covAnnual) {
+  const portVar = quadForm(w, covAnnual);
+  const marginal = matVec(covAnnual, w);
+  return w.map((wi, i) => wi * marginal[i] / portVar);
+}
+
+// ───────── TIME SERIES ─────────
+
+function skewFn(arr, mean, std) {
+  const n = arr.length;
+  const m3 = arr.reduce((a,b)=>a+Math.pow(b-mean,3),0)/n;
+  return std > 0 ? m3 / Math.pow(std,3) : 0;
+}
+function kurtosisFn(arr, mean, std) {
+  const n = arr.length;
+  const m4 = arr.reduce((a,b)=>a+Math.pow(b-mean,4),0)/n;
+  return std > 0 ? (m4 / Math.pow(std,4)) - 3 : 0;
+}
+
+function portfolioSeries(returns, w, riskFree) {
+  const T = returns.length;
+  const daily = returns.map(row => dot(row, w));
+  const cumulative = new Array(T);
+  let cum = 1;
+  for (let t = 0; t < T; t++) { cum *= (1 + daily[t]); cumulative[t] = cum; }
+  const runningMax = new Array(T);
+  let rm = -Infinity;
+  for (let t = 0; t < T; t++) { rm = Math.max(rm, cumulative[t]); runningMax[t] = rm; }
+  const drawdown = cumulative.map((c,t) => c/runningMax[t] - 1);
+
+  const window = 63;
+  const rollingSharpe = new Array(T).fill(0);
+  for (let t = window; t < T; t++) {
+    const slice = daily.slice(t-window, t);
+    const m = slice.reduce((a,b)=>a+b,0)/window;
+    const variance = slice.reduce((a,b)=>a+(b-m)*(b-m),0)/(window-1);
+    const sd = Math.sqrt(variance);
+    rollingSharpe[t] = sd > 0 ? (m*TRADING_DAYS - riskFree) / (sd*Math.sqrt(TRADING_DAYS)) : 0;
+  }
+
+  const meanDaily = daily.reduce((a,b)=>a+b,0)/T;
+  const stdDaily = Math.sqrt(daily.reduce((a,b)=>a+(b-meanDaily)*(b-meanDaily),0)/(T-1));
+  const skewness = skewFn(daily, meanDaily, stdDaily);
+  const kurt = kurtosisFn(daily, meanDaily, stdDaily);
+  const maxDrawdown = Math.min(...drawdown);
+  const totalReturn = cumulative[T-1] - 1;
+
+  return {
+    cumulative: cumulative.map(c => +(c*100).toFixed(3)),
+    drawdown: drawdown.map(d => +(d*100).toFixed(3)),
+    rolling_sharpe: rollingSharpe.map(s => +s.toFixed(3)),
+    daily_mean: meanDaily, daily_std: stdDaily,
+    skew: skewness, kurtosis: kurt,
+    max_drawdown: maxDrawdown, total_return: totalReturn,
+  };
+}
+
+// ───────── MAIN PIPELINE ─────────
+
+function runFullAnalysis(rows, riskFreeAnnual, progressCb) {
+  progressCb = progressCb || function(){};
+  if (riskFreeAnnual === undefined) riskFreeAnnual = 0.012;
+
+  progressCb('Parsing file...');
+  const parsed = parseToWidePrices(rows);
+  const tickers = parsed.tickers, dates = parsed.dates, prices = parsed.prices;
+  const n = tickers.length;
+  if (n < 2) throw new Error("Need at least 2 tickers with overlapping price history.");
+  if (dates.length < 30) throw new Error("Not enough overlapping trading days (need at least 30) — check your data has consistent dates across all tickers.");
+
+  progressCb('Computing returns...');
+  const returns = computeDailyReturns(prices);
+  const dailyMean = meanVec(returns);
+  const dailyCov = covMatrix(returns, dailyMean);
+
+  const meanAnnual = dailyMean.map(m => m * TRADING_DAYS);
+  const covAnnual = dailyCov.map(row => row.map(v => v * TRADING_DAYS));
+
+  progressCb('Optimizing for max Sharpe...');
+  let wMaxSharpeRaw = optimizePortfolio(meanAnnual, covAnnual, riskFreeAnnual, 'sharpe', 4000);
+  const wMaxSharpe = roundToPct(wMaxSharpeRaw, meanAnnual, covAnnual, riskFreeAnnual, 'sharpe');
+
+  progressCb('Optimizing for min variance...');
+  let wMinVarRaw = optimizePortfolio(meanAnnual, covAnnual, riskFreeAnnual, 'variance', 4000);
+  const wMinVar = roundToPct(wMinVarRaw, meanAnnual, covAnnual, riskFreeAnnual, 'variance');
+
+  const wEqualRaw = new Array(n).fill(1/n);
+  const wEqual = roundToPctNeutral(wEqualRaw);
+
+  progressCb('Optimizing for max return...');
+  let wMaxReturn;
+  if (n > 100) {
+    // A 1%-per-holding floor across more than 100 names can't sum to 100%,
+    // so fall back to equal weight rather than fail outright.
+    wMaxReturn = wEqual.slice();
+  } else {
+    const minW = 0.01;
+    let wMaxReturnRaw = optimizeMaxCumulativeReturn(returns, minW, 3000);
+    wMaxReturn = roundToPctMaxReturn(wMaxReturnRaw, returns);
+  }
+
+  progressCb('Building efficient frontier...');
+  const minVarReturn = portStats(wMinVar, meanAnnual, covAnnual, riskFreeAnnual).return;
+  const maxReturn = Math.max.apply(null, meanAnnual);
+  const frontier = buildEfficientFrontier(meanAnnual, covAnnual, riskFreeAnnual, minVarReturn, maxReturn, 30);
+
+  progressCb('Running Monte Carlo simulation...');
+  const monteCarlo = monteCarloCloud(meanAnnual, covAnnual, riskFreeAnnual, n, 4000);
+
+  progressCb('Computing risk contributions...');
+  const rcMaxSharpe = riskContribution(wMaxSharpe, covAnnual);
+  const rcMinVar = riskContribution(wMinVar, covAnnual);
+  const rcEqual = riskContribution(wEqual, covAnnual);
+  const rcMaxReturn = riskContribution(wMaxReturn, covAnnual);
+
+  progressCb('Computing performance series...');
+  const portfolios = { max_sharpe: wMaxSharpe, min_variance: wMinVar, equal_weight: wEqual, max_return: wMaxReturn };
+  const series = {};
+  for (const key in portfolios) {
+    series[key] = portfolioSeries(returns, portfolios[key], riskFreeAnnual);
+  }
+
+  progressCb('Computing correlation matrix...');
+  const corr = corrMatrix(dailyCov);
+
+  const stockStats = {};
+  tickers.forEach((t, i) => {
+    stockStats[t] = {
+      mean_return: meanAnnual[i],
+      std_dev: Math.sqrt(covAnnual[i][i]),
+      sharpe: (meanAnnual[i] - riskFreeAnnual) / Math.sqrt(covAnnual[i][i]),
+    };
+  });
+
+  const portfolioOut = {};
+  for (const key in portfolios) {
+    const w = portfolios[key];
+    const stats = portStats(w, meanAnnual, covAnnual, riskFreeAnnual);
+    const weightsObj = {};
+    tickers.forEach((t,i) => { weightsObj[t] = +w[i].toFixed(5); });
+    portfolioOut[key] = { weights: weightsObj, return: stats.return, std: stats.std, sharpe: stats.sharpe };
+  }
+
+  progressCb('Done.');
+
+  const rcObj = (arr) => { const o = {}; tickers.forEach((t,i)=>{ o[t] = +arr[i].toFixed(5); }); return o; };
+
+  return {
+    tickers,
+    date_range: [dates[0], dates[dates.length-1]],
+    n_days: dates.length,
+    risk_free_rate: riskFreeAnnual,
+    stock_stats: stockStats,
+    portfolios: portfolioOut,
+    risk_contribution: {
+      max_sharpe: rcObj(rcMaxSharpe),
+      min_variance: rcObj(rcMinVar),
+      equal_weight: rcObj(rcEqual),
+      max_return: rcObj(rcMaxReturn),
+    },
+    efficient_frontier: {
+      return: frontier.map(p=>p.return), std: frontier.map(p=>p.std), sharpe: frontier.map(p=>p.sharpe),
+    },
+    monte_carlo: monteCarlo,
+    series: {
+      max_sharpe: Object.assign({dates: dates.slice(1)}, series.max_sharpe),
+      min_variance: Object.assign({dates: dates.slice(1)}, series.min_variance),
+      equal_weight: Object.assign({dates: dates.slice(1)}, series.equal_weight),
+      max_return: Object.assign({dates: dates.slice(1)}, series.max_return),
+    },
+    correlation: { tickers: tickers, matrix: corr.map(row => row.map(v => +v.toFixed(3))) },
+  };
+}
+// SHARED SETUP (runs once on page load, independent of any uploaded data)
+// ═══════════════════════════════════════════════════════════
+
+const COLORS = {
+  text: '#e8edf4', dim: '#7c8a9e', faint: '#4a5568', line: '#1f2937',
+  accent: '#4ad9c4', accentDim: 'rgba(74,217,196,0.25)',
+  gold: '#e8b84a', red: '#e8584a', blue: '#5a8fe8', purple: '#a78bfa',
+  cloud: 'rgba(80,95,115,0.35)'
+};
+
+const PALETTE = ['#4ad9c4','#e8b84a','#5a8fe8','#e8584a','#a78bfa','#f472b6','#34d399',
+  '#fb923c','#60a5fa','#facc15','#f87171','#2dd4bf','#c084fc','#fbbf24','#38bdf8','#fb7185','#84cc16'];
+
+Chart.defaults.font.family = "'JetBrains Mono','SF Mono',monospace";
+Chart.defaults.color = COLORS.dim;
+Chart.defaults.borderColor = COLORS.line;
+
+function fmtPct(x, d=1){ return (x*100).toFixed(d) + '%'; }
+function fmtNum(x, d=2){ return x.toFixed(d); }
+
+// ───────── TAB SWITCHING ─────────
+const tabButtons = document.querySelectorAll('.tab-btn');
+const tabContents = document.querySelectorAll('.tab-content');
+tabButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    tabButtons.forEach(b => b.classList.remove('active'));
+    tabContents.forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    requestAnimationFrame(() => {
+      Object.values(Chart.instances).forEach(c => c.resize());
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// FILE UPLOAD HANDLING
+// ═══════════════════════════════════════════════════════════
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
+const uploadStatus = document.getElementById('upload-status');
+const rfInput = document.getElementById('rf-input');
+const overlay = document.getElementById('processing-overlay');
+const processingStatus = document.getElementById('processing-status');
+const changeFileBtn = document.getElementById('change-file-btn');
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files.length) handleFile(e.target.files[0]);
+});
+
+changeFileBtn.addEventListener('click', () => {
+  document.getElementById('app-view').style.display = 'none';
+  document.getElementById('upload-view').style.display = 'flex';
+  uploadStatus.textContent = '';
+  uploadStatus.className = '';
+  fileInput.value = '';
+});
+
+function handleFile(file){
+  const name = file.name.toLowerCase();
+  if (!name.endsWith('.xlsx') && !name.endsWith('.xls') && !name.endsWith('.csv')){
+    uploadStatus.textContent = 'Please upload a .xlsx, .xls, or .csv file.';
+    uploadStatus.className = 'error';
+    return;
+  }
+
+  uploadStatus.textContent = `Reading ${file.name}...`;
+  uploadStatus.className = 'processing';
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array', cellDates: true });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { raw: true, defval: null });
+
+      if (!rows.length){
+        throw new Error('The file appears to be empty.');
+      }
+
+      processRows(rows);
+    } catch (err) {
+      console.error(err);
+      uploadStatus.textContent = 'Error reading file: ' + err.message;
+      uploadStatus.className = 'error';
+    }
+  };
+  reader.onerror = () => {
+    uploadStatus.textContent = 'Could not read the file. Please try again.';
+    uploadStatus.className = 'error';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function processRows(rows){
+  overlay.classList.add('active');
+  const rfPct = parseFloat(rfInput.value);
+  const riskFree = (isNaN(rfPct) ? 1.2 : rfPct) / 100;
+
+  // Run on next tick so the overlay actually paints before the (synchronous,
+  // CPU-heavy) optimization work blocks the main thread.
+  setTimeout(() => {
+    try {
+      const result = runFullAnalysis(rows, riskFree, (msg) => {
+        processingStatus.textContent = msg;
+      });
+      overlay.classList.remove('active');
+      document.getElementById('upload-view').style.display = 'none';
+      document.getElementById('app-view').style.display = 'block';
+      renderDashboard(result);
+    } catch (err) {
+      console.error(err);
+      overlay.classList.remove('active');
+      uploadStatus.textContent = 'Error: ' + err.message;
+      uploadStatus.className = 'error';
+    }
+  }, 50);
+}
+
+// ═══════════════════════════════════════════════════════════
+// DASHBOARD RENDERING — called once with the parsed/optimized data
+// ═══════════════════════════════════════════════════════════
+
+function renderDashboard(DATA){
+  // Clear any previous render (in case of re-upload via 'Load different file')
+  document.getElementById('overview-cards').innerHTML = '';
+  document.getElementById('portfolio-sheet-row').innerHTML = '';
+  document.querySelector('#stock-stats-table tbody').innerHTML = '';
+  document.getElementById('compare-toggles').innerHTML = '';
+  document.querySelector('#compare-table tbody').innerHTML = '';
+  Object.values(Chart.instances).forEach(c => c.destroy());
+
+  document.getElementById('header-dates').textContent = DATA.date_range[0] + ' → ' + DATA.date_range[1];
+  document.getElementById('header-ndays').textContent = DATA.n_days.toLocaleString();
+  document.getElementById('header-rf').textContent = fmtPct(DATA.risk_free_rate, 2);
+
+  function scatterDataset(label, x, y, color, pointStyle, radius, extra={}){
+    return Object.assign({
+      label, data: x.map((v,i)=>({x:v, y:y[i]})),
+      backgroundColor: color, borderColor: color,
+      pointStyle, pointRadius: radius, pointHoverRadius: radius+2,
+      showLine: false,
+    }, extra);
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // ROW 1 — TOP STAT CARDS
+  // ═══════════════════════════════════════════════════════════
+
+  function buildOverviewCards(){
+    const order = [
+      {key:'max_sharpe', label:'Max Sharpe (Optimal)', sub:'Optimized for highest risk-adjusted return', cls:'lead', color:COLORS.gold},
+      {key:'max_return', label:'Highest Return', sub:`Best realized return, every holding \u22651%`, cls:'lead-purple', color:COLORS.purple},
+      {key:'equal_weight', label:'Equal Weight', sub:`1/${DATA.tickers.length} allocation across all holdings`, cls:'', color:COLORS.red},
+      {key:'min_variance', label:'Minimum Variance', sub:'Optimized for lowest risk', cls:'', color:COLORS.blue},
+    ];
+    const wrap = document.getElementById('overview-cards');
+    order.forEach(o => {
+      const p = DATA.portfolios[o.key];
+      const div = document.createElement('div');
+      div.className = 'pp-card' + (o.cls ? ' ' + o.cls : '');
+      div.innerHTML = `
+        <div class="pp-name">${o.label}</div>
+        <div class="pp-sub">${o.sub}</div>
+        <div class="pp-metrics">
+          <div><div class="pp-metric-label">Return</div><div class="pp-metric-value" style="color:${o.color}">${fmtPct(p.return)}</div></div>
+          <div><div class="pp-metric-label">Risk</div><div class="pp-metric-value">${fmtPct(p.std)}</div></div>
+          <div><div class="pp-metric-label">Sharpe</div><div class="pp-metric-value" style="color:${o.color}">${fmtNum(p.sharpe)}</div></div>
+        </div>
+      `;
+      wrap.appendChild(div);
+    });
+  }
+  buildOverviewCards();
+
+  // ═══════════════════════════════════════════════════════════
+  // ROW 2 — EFFICIENT FRONTIER (full width)
+  // ═══════════════════════════════════════════════════════════
+
+  document.getElementById('frontier-count-badge').textContent = `${DATA.monte_carlo.std.length.toLocaleString()} simulations`;
+
+  new Chart(document.getElementById('chart-frontier-main'), {
+    type: 'scatter',
+    data: { datasets: [
+      {
+        label:'Random portfolios', data: DATA.monte_carlo.std.map((v,i)=>({x:v,y:DATA.monte_carlo.return[i]})),
+        backgroundColor: DATA.monte_carlo.sharpe.map(s => {
+          const t = Math.max(0, Math.min(1, (s - 0.2) / 1.8));
+          const r = Math.round(42 + t*30), g = Math.round(60 + t*157), b = Math.round(80 + t*116);
+          return `rgba(${r},${g},${b},0.55)`;
+        }),
+        pointRadius: 2.2, showLine:false,
+      },
+      Object.assign(scatterDataset('Efficient frontier', DATA.efficient_frontier.std, DATA.efficient_frontier.return, COLORS.accent, 'line', 0), {showLine:true, borderWidth:3, fill:false, tension:0.15}),
+      scatterDataset('Max Sharpe', [DATA.portfolios.max_sharpe.std], [DATA.portfolios.max_sharpe.return], COLORS.gold, 'star', 11),
+      scatterDataset('Highest Return', [DATA.portfolios.max_return.std], [DATA.portfolios.max_return.return], COLORS.purple, 'star', 11),
+      scatterDataset('Min Variance', [DATA.portfolios.min_variance.std], [DATA.portfolios.min_variance.return], COLORS.blue, 'rectRot', 9),
+      scatterDataset('Equal Weight', [DATA.portfolios.equal_weight.std], [DATA.portfolios.equal_weight.return], COLORS.red, 'triangle', 9),
+    ]},
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:(c)=>`σ=${fmtPct(c.parsed.x)}  r=${fmtPct(c.parsed.y)}`}} },
+      scales:{
+        x:{ title:{display:true, text:'Annualized Std Dev (Risk)', color:COLORS.faint}, grid:{color:COLORS.line}, ticks:{callback:v=>fmtPct(v,0)} },
+        y:{ title:{display:true, text:'Annualized Return', color:COLORS.faint}, grid:{color:COLORS.line}, ticks:{callback:v=>fmtPct(v,0)} },
+      }
+    }
+  });
+
+  const msTop = Object.entries(DATA.portfolios.max_sharpe.weights).sort((a,b)=>b[1]-a[1]).filter(([,v])=>v>0.001);
+  const mrTop = Object.entries(DATA.portfolios.max_return.weights).sort((a,b)=>b[1]-a[1]);
+  const mrSeries = DATA.series.max_return;
+  document.getElementById('overview-insight').innerHTML = `
+    The dashed cloud is ${DATA.monte_carlo.std.length.toLocaleString()} randomly-weighted portfolios; the teal curve is the true <strong>efficient frontier</strong>,
+    computed via constrained mean-variance optimization for the minimum-risk portfolio at each target return level.
+    Every point on that curve is the best possible risk/return trade-off achievable from these ${DATA.tickers.length} holdings &mdash; no random
+    combination of weights can beat it. The <span class="accent-text">gold star</span> marks the portfolio with the highest
+    Sharpe ratio (<strong>${fmtNum(DATA.portfolios.max_sharpe.sharpe)}</strong>), concentrated mainly in
+    <strong>${msTop[0][0]} (${fmtPct(msTop[0][1])})</strong>, <strong>${msTop[1][0]} (${fmtPct(msTop[1][1])})</strong> and
+    <strong>${msTop[2][0]} (${fmtPct(msTop[2][1])})</strong>. Notice it sits to the <em>left</em> of the equal-weight red
+    triangle &mdash; same or better return, for meaningfully less risk. The blue diamond is the minimum-variance portfolio,
+    anchoring the leftmost edge of the frontier. The <span style="color:${COLORS.purple}; font-weight:600;">purple star</span> is a
+    different kind of optimum: the weighting that maximizes <em>realized</em> cumulative return over the actual historical
+    path (not the expected/annualized return the frontier is built from), while still requiring every holding to keep at
+    least 1% &mdash; it grew $100 into <strong>$${(100*(1+mrSeries.total_return)).toFixed(2)}</strong> over the period,
+    concentrated mainly in <strong>${mrTop[0][0]} (${fmtPct(mrTop[0][1])})</strong>. It can sit off the teal curve since
+    it's chasing a different target, and that gap is a reminder that the best-performing portfolio in hindsight is rarely
+    the same as the one that looked optimal in advance.
+  `;
+
+  // ═══════════════════════════════════════════════════════════
+  // ROW 3 — THREE PORTFOLIOS SIDE BY SIDE (pie + stats each)
+  // ═══════════════════════════════════════════════════════════
+
+  function buildPortfolioSheetCard(key, label, sub, accentColor, badge, markerShape){
+    const p = DATA.portfolios[key];
+    const series = DATA.series[key];
+    const sortedWeights = Object.entries(p.weights).sort((a,b)=>b[1]-a[1]);
+    const nonZero = sortedWeights.filter(([,v])=>v>0.0005);
+
+    const card = document.createElement('div');
+    card.className = 'psheet-card' + (badge ? ' ' + badge.cls : '');
+
+    const cardId = 'psheet-' + key;
+    card.innerHTML = `
+      <div class="psheet-head">
+        <div>
+          <div class="psheet-name">${label}</div>
+          <div class="psheet-sub">${sub}</div>
+        </div>
+        ${badge ? `<span class="psheet-badge" style="background:${badge.bg}; color:${badge.color};">${badge.text}</span>` : ''}
+      </div>
+      <div class="psheet-stats">
+        <div><div class="psheet-stat-label">Return</div><div class="psheet-stat-value" style="color:${accentColor}">${fmtPct(p.return)}</div></div>
+        <div><div class="psheet-stat-label">Risk</div><div class="psheet-stat-value">${fmtPct(p.std)}</div></div>
+        <div><div class="psheet-stat-label">Sharpe</div><div class="psheet-stat-value" style="color:${accentColor}">${fmtNum(p.sharpe)}</div></div>
+        <div><div class="psheet-stat-label">Max DD</div><div class="psheet-stat-value" style="color:${COLORS.red}; font-size:14px;">${fmtPct(series.max_drawdown)}</div></div>
+      </div>
+      <div class="chart-box h-220"><canvas id="${cardId}-pie"></canvas></div>
+      <div class="psheet-legend" id="${cardId}-legend"></div>
+    `;
+    document.getElementById('portfolio-sheet-row').appendChild(card);
+
+    const sliceColors = nonZero.map((_,i)=>PALETTE[i%PALETTE.length]);
+    new Chart(document.getElementById(cardId + '-pie'), {
+      type:'doughnut',
+      data:{
+        labels: nonZero.map(([t])=>t),
+        datasets:[{ data: nonZero.map(([,v])=>v), backgroundColor: sliceColors, borderColor:'#10151d', borderWidth:2 }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false}, tooltip:{callbacks:{label:(c)=>`${c.label}: ${fmtPct(c.parsed)}`}} }
+      }
+    });
+
+    const legendWrap = document.getElementById(cardId + '-legend');
+    nonZero.forEach(([t,w], i) => {
+      const item = document.createElement('div');
+      item.className = 'psheet-legend-item';
+      item.innerHTML = `<span class="psheet-legend-dot" style="background:${sliceColors[i]}"></span>${t} ${fmtPct(w,0)}`;
+      legendWrap.appendChild(item);
+    });
+  }
+
+  buildPortfolioSheetCard('max_sharpe', 'Max Sharpe', 'Mathematically optimal allocation', COLORS.gold,
+    {cls:'lead', bg:'rgba(232,184,74,0.12)', color:COLORS.gold, text:'HIGHEST SHARPE'}, 'star');
+  buildPortfolioSheetCard('max_return', 'Highest Return', `Best realized return \u2014 every holding \u22651%`, COLORS.purple,
+    {cls:'lead-purple', bg:'rgba(167,139,250,0.12)', color:COLORS.purple, text:'HIGHEST RETURN'}, 'star');
+  buildPortfolioSheetCard('min_variance', 'Min Variance', 'Lowest possible risk', COLORS.blue, null, 'rectRot');
+  buildPortfolioSheetCard('equal_weight', 'Equal Weight', `1/${DATA.tickers.length} baseline allocation`, COLORS.red, null, 'triangle');
+
+  // ═══════════════════════════════════════════════════════════
+  // ROW 4 — INDIVIDUAL HOLDINGS
+  // ═══════════════════════════════════════════════════════════
+
+  new Chart(document.getElementById('chart-stock-scatter'), {
+    type:'scatter',
+    data:{ datasets:[{
+      data: DATA.tickers.map(t => ({x: DATA.stock_stats[t].std_dev, y: DATA.stock_stats[t].mean_return, label:t})),
+      backgroundColor: PALETTE, pointRadius:6, pointHoverRadius:8,
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:(c)=>`${c.raw.label}: σ=${fmtPct(c.parsed.x)} r=${fmtPct(c.parsed.y)}`}} },
+      scales:{
+        x:{ title:{display:true, text:'Std Dev', color:COLORS.faint}, grid:{color:COLORS.line}, ticks:{callback:v=>fmtPct(v,0), font:{size:9}} },
+        y:{ title:{display:true, text:'Return', color:COLORS.faint}, grid:{color:COLORS.line}, ticks:{callback:v=>fmtPct(v,0), font:{size:9}} },
+      }
+    }
+  });
+
+  (function(){
+    const tbody = document.querySelector('#stock-stats-table tbody');
+    DATA.tickers.slice().sort((a,b)=>DATA.stock_stats[b].sharpe - DATA.stock_stats[a].sharpe).forEach(t => {
+      const s = DATA.stock_stats[t];
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${t}</td><td>${fmtPct(s.mean_return)}</td><td>${fmtPct(s.std_dev)}</td><td>${fmtNum(s.sharpe)}</td>`;
+      tbody.appendChild(tr);
+    });
+  })();
+
+  // ═══════════════════════════════════════════════════════════
+  // COMPARISON TAB
+  // ═══════════════════════════════════════════════════════════
+
+  const compareConfig = [
+    {key:'max_sharpe', label:'Max Sharpe', color:COLORS.gold},
+    {key:'max_return', label:'Highest Return', color:COLORS.purple},
+    {key:'min_variance', label:'Min Variance', color:COLORS.blue},
+    {key:'equal_weight', label:'Equal Weight', color:COLORS.red},
+  ];
+  let activeCompare = new Set(['max_sharpe','max_return','equal_weight','min_variance']);
+
+  const toggleWrap = document.getElementById('compare-toggles');
+  compareConfig.forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'toggle-btn active';
+    btn.textContent = c.label;
+    btn.style.borderColor = c.color;
+    btn.addEventListener('click', () => {
+      if (activeCompare.has(c.key)) { activeCompare.delete(c.key); btn.classList.remove('active'); }
+      else { activeCompare.add(c.key); btn.classList.add('active'); }
+      renderCompareCharts();
+    });
+    toggleWrap.appendChild(btn);
+  });
+
+  let growthChart, ddChart, rollSharpeChart;
+
+  function renderCompareCharts(){
+    const labels = DATA.series.max_sharpe.dates;
+    const active = compareConfig.filter(c => activeCompare.has(c.key));
+
+    const growthDatasets = active.map(c => ({
+      label: c.label, data: DATA.series[c.key].cumulative, borderColor: c.color,
+      backgroundColor:'transparent', borderWidth:1.8, pointRadius:0, tension:0.05
+    }));
+    const ddDatasets = active.map(c => ({
+      label: c.label, data: DATA.series[c.key].drawdown, borderColor: c.color,
+      backgroundColor:'transparent', borderWidth:1.4, pointRadius:0, tension:0.05
+    }));
+    const rollDatasets = active.map(c => ({
+      label: c.label, data: DATA.series[c.key].rolling_sharpe, borderColor: c.color,
+      backgroundColor:'transparent', borderWidth:1.4, pointRadius:0, tension:0.05
+    }));
+
+    if (growthChart) growthChart.destroy();
+    if (ddChart) ddChart.destroy();
+    if (rollSharpeChart) rollSharpeChart.destroy();
+
+    growthChart = new Chart(document.getElementById('chart-compare-growth'), {
+      type:'line', data:{labels, datasets:growthDatasets},
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{position:'top', labels:{boxWidth:10,font:{size:11}}}, tooltip:{callbacks:{label:(c)=>`${c.dataset.label}: $${c.parsed.y.toFixed(2)}`}}},
+        scales:{ x:{grid:{display:false}, ticks:{maxTicksLimit:8,font:{size:9}}}, y:{grid:{color:COLORS.line}, ticks:{callback:v=>'$'+v,font:{size:9}}} }
+      }
+    });
+
+    ddChart = new Chart(document.getElementById('chart-compare-drawdown'), {
+      type:'line', data:{labels, datasets:ddDatasets},
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{position:'top', labels:{boxWidth:10,font:{size:11}}}, tooltip:{callbacks:{label:(c)=>`${c.dataset.label}: ${c.parsed.y.toFixed(1)}%`}}},
+        scales:{ x:{grid:{display:false}, ticks:{maxTicksLimit:6,font:{size:9}}}, y:{grid:{color:COLORS.line}, ticks:{callback:v=>v+'%',font:{size:9}}} }
+      }
+    });
+
+    rollSharpeChart = new Chart(document.getElementById('chart-compare-rollsharpe'), {
+      type:'line', data:{labels, datasets:rollDatasets},
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{position:'top', labels:{boxWidth:10,font:{size:11}}}, tooltip:{callbacks:{label:(c)=>`${c.dataset.label}: ${c.parsed.y.toFixed(2)}`}}},
+        scales:{ x:{grid:{display:false}, ticks:{maxTicksLimit:6,font:{size:9}}}, y:{grid:{color:COLORS.line}, ticks:{font:{size:9}}} }
+      }
+    });
+  }
+  renderCompareCharts();
+
+  (function(){
+    const tbody = document.querySelector('#compare-table tbody');
+    compareConfig.forEach(c => {
+      const p = DATA.portfolios[c.key];
+      const s = DATA.series[c.key];
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><span class="ticker-dot" style="background:${c.color}"></span>${c.label}</td>
+        <td>${fmtPct(s.total_return)}</td>
+        <td>${fmtPct(p.return)}</td>
+        <td>${fmtPct(p.std)}</td>
+        <td>${fmtNum(p.sharpe)}</td>
+        <td style="color:${COLORS.red}">${fmtPct(s.max_drawdown)}</td>
+        <td>${fmtNum(s.skew)}</td>
+        <td>${fmtNum(s.kurtosis)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  })();
+
+  const ewSeries = DATA.series.equal_weight, msSeries = DATA.series.max_sharpe, mrCompSeries = DATA.series.max_return;
+  const returnDelta = msSeries.total_return - ewSeries.total_return;
+  const ddImprovement = ewSeries.max_drawdown - msSeries.max_drawdown;
+
+  const msWeights = Object.entries(DATA.portfolios.max_sharpe.weights).sort((a,b)=>b[1]-a[1]);
+  const zeroWeightTickers = msWeights.filter(([,v]) => v < 0.005).map(([t]) => t);
+  const topMsWeights = msWeights.filter(([,v]) => v >= 0.04).map(([t]) => t);
+  const zeroWeightText = zeroWeightTickers.length
+    ? `${zeroWeightTickers.slice(0,7).join(', ')}${zeroWeightTickers.length > 7 ? ', and others' : ''} all received ~0% weight`
+    : `every holding kept some allocation`;
+
+  document.getElementById('compare-insight').innerHTML = `
+    Over the sample period, <strong>$100 in the equal-weight portfolio grew to
+    $${(100*(1+ewSeries.total_return)).toFixed(2)}</strong>, while the same $100 in the
+    <span class="accent-text">max-Sharpe optimized portfolio grew to $${(100*(1+msSeries.total_return)).toFixed(2)}</span>
+    &mdash; a difference of <strong>${returnDelta >= 0 ? '+' : ''}${fmtPct(returnDelta)}</strong> in cumulative terms.
+    The optimized portfolio's max drawdown was <strong>${fmtPct(msSeries.max_drawdown)}</strong> versus
+    <strong>${fmtPct(ewSeries.max_drawdown)}</strong> for equal weight
+    (${ddImprovement >= 0 ? 'a smaller peak-to-trough loss' : 'a larger peak-to-trough loss'}).
+    The gap comes largely from <strong>concentration</strong>: optimization shifted capital away from low-Sharpe names
+    (${zeroWeightText}) and into the strongest risk-adjusted performers (${topMsWeights.slice(0,4).join(', ')}).
+    <br><br>
+    The <span style="color:${COLORS.purple}; font-weight:600;">Highest Return</span> portfolio went further still
+    &mdash; $100 grew to <strong>$${(100*(1+mrCompSeries.total_return)).toFixed(2)}</strong>, by concentrating as
+    heavily as the 1%-per-holding floor allowed in whichever names actually performed best in hindsight. This is the
+    central trade-off across all three: max Sharpe balances return against volatility using only information available
+    in advance, the highest-return portfolio is fit directly to what happened and will usually look best in a backtest,
+    and historical optimization of any kind can overfit to the specific sample period &mdash; none of these portfolios
+    are guaranteed to repeat their ranking out of sample.
+  `;
+
+  // ═══════════════════════════════════════════════════════════
+  // CORRELATION TAB
+  // ═══════════════════════════════════════════════════════════
+
+  (function(){
+    const tickers = DATA.correlation.tickers;
+    const matrix = DATA.correlation.matrix;
+    const n = tickers.length;
+    const cellSize = Math.max(34, Math.min(46, 760/n));
+
+    let html = `<div style="display:grid; grid-template-columns: 60px repeat(${n}, ${cellSize}px); gap:2px; font-family:var(--mono); font-size:9.5px;">`;
+    html += `<div></div>`;
+    tickers.forEach(t => html += `<div style="writing-mode:vertical-rl; transform:rotate(180deg); text-align:left; color:${COLORS.dim}; padding-bottom:4px;">${t}</div>`);
+
+    tickers.forEach((rowT, i) => {
+      html += `<div style="display:flex; align-items:center; color:${COLORS.dim}; padding-right:4px; justify-content:flex-end;">${rowT}</div>`;
+      tickers.forEach((colT, j) => {
+        const v = matrix[i][j];
+        const t = (v+1)/2; // 0..1
+        let r,g,b;
+        if (v >= 0) { r = Math.round(16 + t*8); g = Math.round(60+ (v)*157); b = Math.round(80 + (v)*100); }
+        else { r = Math.round(200* -v + 16); g = Math.round(40); b = Math.round(50); }
+        const bg = i===j ? '#1f2937' : `rgba(${r},${g},${b},${0.25+Math.abs(v)*0.55})`;
+        html += `<div title="${rowT}-${colT}: ${v.toFixed(2)}" style="height:${cellSize}px; display:flex; align-items:center; justify-content:center; background:${bg}; border-radius:2px; color:${Math.abs(v)>0.5?'#fff':COLORS.dim};">${v.toFixed(2)}</div>`;
+      });
+    });
+    html += `</div>`;
+    document.getElementById('corr-heatmap').innerHTML = html;
+
+    let pairs = [];
+    for(let i=0;i<n;i++) for(let j=i+1;j<n;j++) pairs.push([tickers[i], tickers[j], matrix[i][j]]);
+    pairs.sort((a,b)=>b[2]-a[2]);
+    const highest = pairs[0], lowest = pairs[pairs.length-1];
+    const avgCorr = pairs.reduce((s,p)=>s+p[2],0)/pairs.length;
+
+    document.getElementById('corr-insight').innerHTML = `
+      Average pairwise correlation across the ${DATA.tickers.length} holdings is <strong>${avgCorr.toFixed(2)}</strong>.
+      The most correlated pair is <strong>${highest[0]} &amp; ${highest[1]}</strong> (${highest[2].toFixed(2)}),
+      while <strong>${lowest[0]} &amp; ${lowest[1]}</strong> are the most diversifying pair (${lowest[2].toFixed(2)}).
+      Lower average correlation means more diversification benefit &mdash; it's part of why the optimizer can build a
+      portfolio with better risk-adjusted return than simply holding everything equally: it leans into combinations of
+      assets that don't move together, reducing portfolio variance below what any single holding offers on its own.
+    `;
+  })();
+
+}
+
+</script>
+</body>
+</html>
