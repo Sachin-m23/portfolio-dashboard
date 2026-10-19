@@ -20,6 +20,8 @@
   --red:          #e8584a;
   --blue:         #5a8fe8;
   --purple:       #a78bfa;
+  --green:        #3ecf8e;
+  --bench:        #c3ccd8;
   --mono: 'JetBrains Mono', 'SF Mono', 'Roboto Mono', Consolas, monospace;
   --sans: 'Inter', -apple-system, 'Segoe UI', sans-serif;
   color-scheme: dark;
@@ -322,7 +324,47 @@ table.weights-table td.floor{color:var(--text-faint);}
   cursor:pointer;
   transition:all 0.15s;
 }
-.toggle-btn.active{color:var(--accent); background:rgba(74,217,196,0.08);}
+.toggle-btn{display:inline-flex; align-items:center; gap:7px;}
+.toggle-btn.active{color:var(--text); background:var(--bg-panel); border-color:#2c3a4d;}
+.toggle-btn:not(.active){opacity:0.45;}
+.tdot{display:inline-block; width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+
+/* ───────── COMPARISON TAB ───────── */
+.cmp-toolbar{display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap; margin-bottom:18px;}
+.cmp-title{font-size:18px; font-weight:700; letter-spacing:-0.01em;}
+.cmp-sub{font-family:var(--mono); font-size:11.5px; color:var(--text-dim); margin-top:5px;}
+.cmp-toolbar .toggle-group{margin-bottom:0;}
+.cmp-cards{display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:14px; margin-bottom:20px;}
+@media(max-width:1250px){ .cmp-cards{grid-template-columns:repeat(3, minmax(0,1fr));} }
+@media(max-width:760px){ .cmp-cards{grid-template-columns:repeat(2, minmax(0,1fr));} }
+@media(max-width:460px){ .cmp-cards{grid-template-columns:1fr;} }
+.cmp-card{
+  background:var(--bg-panel);
+  border:1px solid var(--line);
+  border-top:2px solid var(--c, var(--line));
+  border-radius:6px;
+  padding:14px 16px 12px;
+  display:flex; flex-direction:column; gap:8px;
+}
+.cmp-card.bench{background:var(--bg-panel-2);}
+.cmp-card-name{font-family:var(--mono); font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);}
+.cmp-card-name .tdot{margin-right:7px;}
+.cmp-card-value{font-family:var(--mono); font-size:24px; font-weight:700; letter-spacing:-0.02em; font-variant-numeric:tabular-nums;}
+.cmp-card-row{display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; font-family:var(--mono); font-size:11.5px; color:var(--text-dim); font-variant-numeric:tabular-nums;}
+.cmp-card-foot{display:flex; flex-wrap:wrap; gap:4px 14px; border-top:1px solid var(--line); padding-top:9px; font-family:var(--mono); font-size:10.5px; color:var(--text-faint);}
+.cmp-card-foot b{color:var(--text-dim); font-weight:600; font-variant-numeric:tabular-nums;}
+.delta{font-family:var(--mono); font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:4px; white-space:nowrap; font-variant-numeric:tabular-nums;}
+.delta.up{color:var(--green); background:rgba(62,207,142,0.12);}
+.delta.down{color:var(--red); background:rgba(232,88,74,0.12);}
+.delta.neutral{color:var(--text-dim); background:var(--line);}
+.panel-note{font-size:10px; letter-spacing:0.04em; text-transform:none; color:var(--text-faint);}
+.panel-note b{color:var(--text); font-weight:700;}
+table.perf-table td{color:var(--text-dim); padding-top:10px; padding-bottom:10px;}
+table.perf-table td.name{color:var(--text);}
+table.perf-table td.best{color:var(--text); font-weight:700;}
+table.perf-table td.muted{color:var(--text-faint);}
+table.perf-table tr.bench-row td{border-top:1px dashed #2c3a4d; background:rgba(195,204,216,0.03);}
+table.weights-table td.cap{color:var(--gold);}
 
 .small-btn{
   font-family:var(--mono);
@@ -567,7 +609,7 @@ footer{
   <div class="input-shell">
     <div class="brand-eyebrow" style="text-align:center;">Quantitative Portfolio Analysis</div>
     <h1 style="text-align:center; margin-bottom:8px;">Portfolio Optimiser</h1>
-    <p class="input-sub">Enter the tickers in your portfolio. Price history is pulled from Financial Modeling Prep and the optimiser finds the best weights, with every holding kept at 1% or more.</p>
+    <p class="input-sub">Enter the tickers in your portfolio. Price history is pulled from Financial Modeling Prep and the optimiser finds the best weights, with every holding kept between 1% and 30%, then compares them against the S&amp;P 500.</p>
 
     <label class="field-label" for="ticker-input">Holdings</label>
     <div class="ticker-box" id="ticker-box">
@@ -607,7 +649,7 @@ footer{
     <div id="input-status"></div>
 
     <div class="input-footnote">
-      2 to 50 holdings. Use FMP symbols (e.g. BRK-B, VOD.L).<br>
+      2 to 50 holdings. Use FMP symbols (e.g. BRK-B, VOD.L). Each holding gets 1%–30%.<br>
       Only dates where every holding traded are used, so a recent listing shortens the sample.<br>
       Calculations run in your browser; the only outside request is to FMP for prices.
     </div>
@@ -634,6 +676,7 @@ footer{
     <div>Sample period <span id="header-dates">—</span></div>
     <div>Trading days <span id="header-ndays">—</span></div>
     <div>Risk-free rate <span id="header-rf">—</span> annualised</div>
+    <div>Weight limits <span id="header-limits">—</span></div>
     <div>Prices <span id="header-source">—</span></div>
     <button class="change-file-btn" id="edit-btn" type="button">← Edit portfolio</button>
   </div>
@@ -662,6 +705,7 @@ footer{
         <div class="legend-item"><span class="legend-swatch" style="background:#a78bfa;"></span>Highest return</div>
         <div class="legend-item"><span class="legend-swatch" style="background:#5a8fe8;"></span>Min variance</div>
         <div class="legend-item"><span class="legend-swatch" style="background:#e8584a;"></span>Equal weight</div>
+        <div class="legend-item" id="legend-bench"><span class="legend-swatch" style="background:#c3ccd8;"></span>S&amp;P 500</div>
       </div>
     </div>
 
@@ -675,7 +719,7 @@ footer{
 
     <div class="section-divider"><span>Portfolio Weights</span></div>
     <div class="panel">
-      <div class="panel-title">Allocation by Holding <span><button class="small-btn" id="copy-weights-btn" type="button">Copy as CSV</button></span></div>
+      <div class="panel-title"><span>Allocation by Holding <span class="badge" id="weights-limit-badge" style="margin-left:8px;">—</span></span> <span><span class="panel-note" style="margin-right:12px;"><span style="color:var(--gold)">gold</span> = at cap · grey = at minimum</span><button class="small-btn" id="copy-weights-btn" type="button">Copy as CSV</button></span></div>
       <div class="table-scroll">
         <table class="weights-table" id="weights-table">
           <thead><tr><th>Ticker</th><th class="num">Max Sharpe</th><th class="num">Highest Return</th><th class="num">Min Variance</th><th class="num">Equal Weight</th></tr></thead>
@@ -703,36 +747,44 @@ footer{
   </section>
 
   <section class="tab-content" id="tab-compare">
-    <div class="toggle-group" id="compare-toggles"></div>
-
-    <div class="panel">
-      <div class="panel-title">Cumulative Growth of $100</div>
-      <div class="chart-box h-420"><canvas id="chart-compare-growth"></canvas></div>
+    <div class="cmp-toolbar">
+      <div>
+        <div class="cmp-title">Performance vs S&amp;P 500</div>
+        <div class="cmp-sub" id="cmp-sub"></div>
+      </div>
+      <div class="toggle-group" id="compare-toggles"></div>
     </div>
 
-    <div class="grid grid-2" style="margin-top:20px;">
+    <div class="cmp-cards" id="cmp-cards"></div>
+
+    <div class="panel">
+      <div class="panel-title">Growth of $100 <span class="panel-note">Dashed line = S&amp;P 500 · hover for values on any date</span></div>
+      <div class="chart-box h-380"><canvas id="chart-compare-growth"></canvas></div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:repeat(auto-fit, minmax(min(100%, 420px), 1fr)); margin-top:20px;">
       <div class="panel">
-        <div class="panel-title">Drawdown</div>
-        <div class="chart-box h-300"><canvas id="chart-compare-drawdown"></canvas></div>
+        <div class="panel-title">Drawdown from Peak</div>
+        <div class="chart-box h-260"><canvas id="chart-compare-drawdown"></canvas></div>
       </div>
       <div class="panel">
         <div class="panel-title">Rolling 3-Month Sharpe Ratio</div>
-        <div class="chart-box h-300"><canvas id="chart-compare-rollsharpe"></canvas></div>
+        <div class="chart-box h-260"><canvas id="chart-compare-rollsharpe"></canvas></div>
       </div>
     </div>
 
     <div class="panel" style="margin-top:20px;">
-      <div class="panel-title">Performance Summary</div>
+      <div class="panel-title">Performance Summary <span class="panel-note"><b>Bold</b> = best in column</span></div>
       <div class="table-scroll">
-        <table class="weights-table" id="compare-table">
-          <thead><tr><th>Portfolio</th><th class="num">Total Return</th><th class="num">Ann. Return</th><th class="num">Ann. Std Dev</th><th class="num">Sharpe</th><th class="num">Max Drawdown</th><th class="num">Skew</th><th class="num">Kurtosis</th></tr></thead>
+        <table class="weights-table perf-table" id="compare-table">
+          <thead><tr><th>Portfolio</th><th class="num">Total Return</th><th class="num">vs S&amp;P 500</th><th class="num">Ann. Return</th><th class="num">Volatility</th><th class="num">Sharpe</th><th class="num">Max Drawdown</th><th class="num">Beta</th><th class="num">Corr. to S&amp;P</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
     </div>
 
     <div class="panel" style="margin-top:20px;">
-      <div class="panel-title">Equal Weight vs. Optimised — What Changed</div>
+      <div class="panel-title">What the Comparison Shows</div>
       <div class="insight" id="compare-insight"></div>
     </div>
   </section>
@@ -752,20 +804,27 @@ footer{
 
 </main>
 
-<footer>Prices from Financial Modeling Prep &middot; Mean-variance optimisation with a 1% minimum per holding &middot; Monte Carlo simulation (4,000 portfolios) &middot; Not investment advice</footer>
+<footer>Prices from Financial Modeling Prep &middot; Mean-variance optimisation, 1%–30% per holding &middot; Benchmark: S&amp;P 500 &middot; Monte Carlo simulation (4,000 portfolios) &middot; Not investment advice</footer>
 
 </div> <!-- /app-view -->
 
 <script id="engine">
 // ═══════════════════════════════════════════════════════════════════════
 // PORTFOLIO MATH ENGINE
-// Same methodology as the file-upload version, with one change: every
-// portfolio (optimised, frontier and Monte Carlo) keeps each holding >= 1%.
+// Same mean-variance methodology as the file-upload version. Every
+// portfolio (optimised, risk/return curve and Monte Carlo) keeps each
+// holding between MIN_WEIGHT and MAX_WEIGHT.
 // ═══════════════════════════════════════════════════════════════════════
 
 const TRADING_DAYS = 252;
 const MIN_WEIGHT = 0.01;   // every holding keeps at least 1%
+const MAX_WEIGHT = 0.30;   // no holding above 30%
 const MAX_HOLDINGS = 50;
+
+/** 30% is impossible with fewer than 4 holdings, so the cap rises to the smallest whole % that works. */
+function effectiveBounds(n) {
+  return { lo: MIN_WEIGHT, hi: Math.max(MAX_WEIGHT, Math.ceil(100 / n) / 100) };
+}
 
 // ───────── LINEAR ALGEBRA HELPERS ─────────
 
@@ -843,39 +902,39 @@ function portStats(w, meanAnnual, covAnnual, riskFree) {
   return { return: r, std: s, sharpe: sh };
 }
 
-// ───────── PROJECTIONS ─────────
-
-function projectToSimplex(v) {
-  const n = v.length;
-  const u = v.slice().sort((a,b) => b - a);
-  const cssv = [];
-  let sum = 0;
-  for (let i = 0; i < n; i++) { sum += u[i]; cssv.push(sum); }
-  let rho = 0;
-  for (let i = n - 1; i >= 0; i--) {
-    if (u[i] + (1 - cssv[i]) / (i + 1) > 0) { rho = i; break; }
-  }
-  const theta = (cssv[rho] - 1) / (rho + 1);
-  return v.map(vi => Math.max(vi - theta, 0));
-}
+// ───────── PROJECTION ONTO {lo <= w_i <= hi, sum(w) = 1} ─────────
 
 /**
- * Projects onto {w : w_i >= minW, sum(w) = 1}: shift down by the floor,
- * project onto a simplex scaled to the remaining budget, shift back up.
+ * Exact Euclidean projection onto the capped simplex. The solution has the
+ * form w_i = clip(v_i - t, lo, hi). f(t) = sum(w) is piecewise linear and
+ * falls as t rises, with kinks at v_i - hi and v_i - lo, so sort the kinks,
+ * binary-search the segment where f crosses 1, and solve on that segment.
  */
-function projectToSimplexWithFloor(v, minW) {
+function projectToBox(v, B) {
+  const { lo, hi } = B;
   const n = v.length;
-  const budget = 1 - n * minW;
-  if (budget <= 1e-12) return new Array(n).fill(1 / n);
-  const shifted = v.map(x => (x - minW) / budget);
-  return projectToSimplex(shifted).map(x => x * budget + minW);
+  const f = (t) => { let s = 0; for (let i = 0; i < n; i++) { const x = v[i] - t; s += x < lo ? lo : x > hi ? hi : x; } return s; };
+  const bps = new Float64Array(2 * n);
+  for (let i = 0; i < n; i++) { bps[2*i] = v[i] - hi; bps[2*i+1] = v[i] - lo; }
+  bps.sort();
+  // f(bps[0]) = n*hi >= 1 and f(bps[2n-1]) = n*lo <= 1
+  let a = 0, b = 2 * n - 1;
+  while (b - a > 1) {
+    const m = (a + b) >> 1;
+    if (f(bps[m]) >= 1) a = m; else b = m;
+  }
+  const ta = bps[a], tb = bps[b], fa = f(ta), fb = f(tb);
+  const t = fa === fb ? ta : ta + (fa - 1) * (tb - ta) / (fa - fb);
+  const out = new Array(n);
+  for (let i = 0; i < n; i++) { const x = v[i] - t; out[i] = x < lo ? lo : x > hi ? hi : x; }
+  return out;
 }
 
 // ───────── OPTIMISERS ─────────
 
-function optimizePortfolio(meanAnnual, covAnnual, riskFree, objective, minW, iters = 4000) {
+function optimizePortfolio(meanAnnual, covAnnual, riskFree, objective, B, iters = 4000) {
   const n = meanAnnual.length;
-  let w = projectToSimplexWithFloor(new Array(n).fill(1/n), minW);
+  let w = projectToBox(new Array(n).fill(1/n), B);
   const lr = 0.05, momentum = 0.85;
   const velocity = new Array(n).fill(0);
 
@@ -900,18 +959,18 @@ function optimizePortfolio(meanAnnual, covAnnual, riskFree, objective, minW, ite
       velocity[i] = momentum * velocity[i] - stepLr * grad[i] / gnorm;
       w[i] = w[i] + velocity[i];
     }
-    w = projectToSimplexWithFloor(w, minW);
+    w = projectToBox(w, B);
   }
   return w;
 }
 
 /**
  * Maximises REALISED cumulative return over the actual daily-return path
- * (via log growth, same maximiser, more stable), with every holding >= minW.
+ * (via log growth, same maximiser, more stable), within the weight bounds.
  */
-function optimizeMaxCumulativeReturn(returns, minW, iters = 3000) {
+function optimizeMaxCumulativeReturn(returns, B, iters = 3000) {
   const T = returns.length, n = returns[0].length;
-  let w = projectToSimplexWithFloor(new Array(n).fill(1/n), minW);
+  let w = projectToBox(new Array(n).fill(1/n), B);
   const lr = 0.08, momentum = 0.85;
   const velocity = new Array(n).fill(0);
 
@@ -935,29 +994,29 @@ function optimizeMaxCumulativeReturn(returns, minW, iters = 3000) {
       velocity[i] = momentum * velocity[i] - stepLr * grad[i] / gnorm;
       w[i] = w[i] + velocity[i];
     }
-    w = projectToSimplexWithFloor(w, minW);
+    w = projectToBox(w, B);
   }
   return w;
 }
 
-function optimizeForTargetReturn(meanAnnual, covAnnual, targetReturn, minW, iters = 1500) {
+function optimizeForTargetReturn(meanAnnual, covAnnual, targetReturn, B, iters = 1500) {
   const n = meanAnnual.length;
   const lr = 0.05, momentum = 0.8;
   const velocity = new Array(n).fill(0);
   const mnorm = dot(meanAnnual, meanAnnual) || 1;
 
-  function projectReturnAndSimplex(w) {
-    let x = projectToSimplexWithFloor(w, minW);
+  function projectReturnAndBox(w) {
+    let x = projectToBox(w, B);
     for (let i = 0; i < 25; i++) {
       const diff = targetReturn - dot(x, meanAnnual);
       if (Math.abs(diff) < 1e-6) break;
       x = x.map((xi, idx) => xi + meanAnnual[idx] * diff / mnorm);
-      x = projectToSimplexWithFloor(x, minW);
+      x = projectToBox(x, B);
     }
     return x;
   }
 
-  let w = projectReturnAndSimplex(new Array(n).fill(1/n));
+  let w = projectReturnAndBox(new Array(n).fill(1/n));
   for (let it = 0; it < iters; it++) {
     const grad = matVec(covAnnual, w).map(x => 2*x);
     const gnorm = Math.sqrt(dot(grad,grad)) || 1;
@@ -966,31 +1025,32 @@ function optimizeForTargetReturn(meanAnnual, covAnnual, targetReturn, minW, iter
       velocity[i] = momentum*velocity[i] - stepLr*grad[i]/gnorm;
       w[i] = w[i] + velocity[i];
     }
-    w = projectReturnAndSimplex(w);
+    w = projectReturnAndBox(w);
   }
   return w;
 }
 
-// ───────── ROUNDING TO WHOLE PERCENT, 1% FLOOR ─────────
+// ───────── ROUNDING TO WHOLE PERCENT WITHIN BOUNDS ─────────
 
 /**
- * Rounds to 1% increments, never letting a holding fall below 1%, and
- * greedily hands out (or takes back) leftover points to whichever holding
- * most improves scoreFn. Used for the three optimised portfolios.
+ * Rounds to 1% increments inside [lo, hi] and greedily hands out (or takes
+ * back) leftover points to whichever holding most improves scoreFn.
+ * Used for the three optimised portfolios.
  */
-function roundWithFloor(w, scoreFn) {
+function roundWithBounds(w, scoreFn, B) {
+  const lo = Math.round(B.lo * 100), hi = Math.round(B.hi * 100);
   const n = w.length;
-  const pct = w.map(x => Math.max(1, Math.floor(x * 100 + 1e-9)));
+  const pct = w.map(x => Math.min(hi, Math.max(lo, Math.floor(x * 100 + 1e-9))));
   const remainder = 100 - sumArr(pct);
-  const score = arr => scoreFn(arr.map(x => x / 100));
+  const step = remainder > 0 ? 1 : -1;
 
   for (let k = 0; k < Math.abs(remainder); k++) {
-    const step = remainder > 0 ? 1 : -1;
     let bestI = -1, bestScore = -Infinity;
     for (let i = 0; i < n; i++) {
-      if (step < 0 && pct[i] <= 1) continue;
+      if (step > 0 && pct[i] >= hi) continue;
+      if (step < 0 && pct[i] <= lo) continue;
       const trial = pct.slice(); trial[i] += step;
-      const s = score(trial);
+      const s = scoreFn(trial.map(x => x / 100));
       if (s > bestScore) { bestScore = s; bestI = i; }
     }
     if (bestI < 0) break;
@@ -999,19 +1059,26 @@ function roundWithFloor(w, scoreFn) {
   return pct.map(x => x / 100);
 }
 
-/** Largest-remainder rounding with a 1% floor (for frontier, Monte Carlo, equal weight). */
-function roundNeutralFloor(w) {
+/** Largest-remainder rounding inside [lo, hi] (curve, Monte Carlo, equal weight). */
+function roundNeutralBounds(w, B) {
+  const lo = Math.round(B.lo * 100), hi = Math.round(B.hi * 100);
   const n = w.length;
   const scaled = w.map(x => x * 100);
-  const pct = scaled.map(x => Math.max(1, Math.floor(x + 1e-9)));
+  const pct = scaled.map(x => Math.min(hi, Math.max(lo, Math.floor(x + 1e-9))));
   let remainder = 100 - sumArr(pct);
   if (remainder > 0) {
     const order = scaled.map((x,i) => [x - Math.floor(x), i]).sort((a,b) => b[0] - a[0]).map(p => p[1]);
-    for (let k = 0; k < remainder; k++) pct[order[k % n]] += 1;
+    let guard = 0;
+    while (remainder > 0 && guard++ < 100 * n) {
+      for (const i of order) {
+        if (remainder === 0) break;
+        if (pct[i] < hi) { pct[i] += 1; remainder -= 1; }
+      }
+    }
   } else if (remainder < 0) {
     while (remainder < 0) {
       let bestI = -1;
-      for (let i = 0; i < n; i++) if (pct[i] > 1 && (bestI < 0 || pct[i] > pct[bestI])) bestI = i;
+      for (let i = 0; i < n; i++) if (pct[i] > lo && (bestI < 0 || pct[i] > pct[bestI])) bestI = i;
       if (bestI < 0) break;
       pct[bestI] -= 1; remainder += 1;
     }
@@ -1043,30 +1110,37 @@ function mulberry32(seed) {
   };
 }
 
-function monteCarloCloud(meanAnnual, covAnnual, riskFree, n, minW, count = 4000) {
+function monteCarloCloud(meanAnnual, covAnnual, riskFree, n, B, count = 4000) {
   const rng = mulberry32(42);
-  const budget = 1 - n * minW;
+  const budget = 1 - n * B.lo;
   const stds = [], rets = [], sharpes = [];
   for (let k = 0; k < count; k++) {
-    const raw = dirichletSample(n, rng);
-    const w = roundNeutralFloor(raw.map(x => minW + budget * x));
+    let w = dirichletSample(n, rng).map(x => B.lo + budget * x);
+    if (w.some(x => x > B.hi)) w = projectToBox(w, B);
+    w = roundNeutralBounds(w, B);
     const s = portStats(w, meanAnnual, covAnnual, riskFree);
     stds.push(s.std); rets.push(s.return); sharpes.push(s.sharpe);
   }
   return { std: stds, return: rets, sharpe: sharpes };
 }
 
-// ───────── BEST-ACHIEVABLE CURVE (frontier under the 1% floor) ─────────
+// ───────── BEST-ACHIEVABLE CURVE (frontier within the weight bounds) ─────────
 
-function buildRiskReturnCurve(meanAnnual, covAnnual, riskFree, minW, minVarReturn, points = 30) {
+function maxFeasibleReturn(meanAnnual, B) {
   const n = meanAnnual.length;
-  const budget = 1 - n * minW;
-  const maxFeasible = minW * sumArr(meanAnnual) + budget * Math.max(...meanAnnual);
-  const top = minVarReturn + 0.98 * (maxFeasible - minVarReturn);
+  const order = meanAnnual.map((m,i) => [m,i]).sort((a,b) => b[0] - a[0]).map(p => p[1]);
+  const w = new Array(n).fill(B.lo);
+  let rem = 1 - n * B.lo;
+  for (const i of order) { const add = Math.min(B.hi - B.lo, rem); w[i] += add; rem -= add; if (rem <= 0) break; }
+  return dot(w, meanAnnual);
+}
+
+function buildRiskReturnCurve(meanAnnual, covAnnual, riskFree, B, minVarReturn, points = 30) {
+  const top = minVarReturn + 0.98 * (maxFeasibleReturn(meanAnnual, B) - minVarReturn);
   const curve = [];
   for (let k = 0; k < points; k++) {
     const target = minVarReturn + (k / (points - 1)) * (top - minVarReturn);
-    const w = roundNeutralFloor(optimizeForTargetReturn(meanAnnual, covAnnual, target, minW, 1500));
+    const w = roundNeutralBounds(optimizeForTargetReturn(meanAnnual, covAnnual, target, B, 1500), B);
     curve.push(portStats(w, meanAnnual, covAnnual, riskFree));
   }
   const seen = new Set();
@@ -1094,9 +1168,9 @@ function kurtosisFn(arr, mean, std) {
   return std > 0 ? (m4 / Math.pow(std,4)) - 3 : 0;
 }
 
-function portfolioSeries(returns, w, riskFree) {
-  const T = returns.length;
-  const daily = returns.map(row => dot(row, w));
+/** Growth, drawdown, rolling Sharpe and summary stats from a daily-return array. */
+function seriesFromDaily(daily, riskFree) {
+  const T = daily.length;
   const cumulative = new Array(T);
   let cum = 1;
   for (let t = 0; t < T; t++) { cum *= (1 + daily[t]); cumulative[t] = cum; }
@@ -1125,6 +1199,14 @@ function portfolioSeries(returns, w, riskFree) {
   };
 }
 
+function betaAndCorr(a, b) {
+  const T = a.length;
+  const ma = sumArr(a) / T, mb = sumArr(b) / T;
+  let cov = 0, va = 0, vb = 0;
+  for (let t = 0; t < T; t++) { const da = a[t]-ma, db = b[t]-mb; cov += da*db; va += da*da; vb += db*db; }
+  return { beta: vb > 0 ? cov / vb : 0, corr: (va > 0 && vb > 0) ? cov / Math.sqrt(va * vb) : 0 };
+}
+
 // ───────── MAIN PIPELINE ─────────
 
 const tick = () => new Promise(r => setTimeout(r, 0));
@@ -1136,7 +1218,7 @@ async function runFullAnalysis(data, riskFreeAnnual, progressCb) {
   if (n < 2) throw new Error("Need at least 2 holdings with price history.");
   if (n > MAX_HOLDINGS) throw new Error(`Maximum of ${MAX_HOLDINGS} holdings.`);
   if (dates.length < 30) throw new Error(`Only ${dates.length} trading days where every holding has a price. Need at least 30 — a recently listed holding may be limiting the overlap.`);
-  const minW = MIN_WEIGHT;
+  const B = effectiveBounds(n);
 
   const step = async (msg) => { progressCb(msg); await tick(); };
 
@@ -1148,37 +1230,61 @@ async function runFullAnalysis(data, riskFreeAnnual, progressCb) {
   const covAnnual = dailyCov.map(row => row.map(v => v * TRADING_DAYS));
 
   await step('Optimising for max Sharpe...');
-  const wMaxSharpe = roundWithFloor(
-    optimizePortfolio(meanAnnual, covAnnual, riskFreeAnnual, 'sharpe', minW, 4000),
-    w => portStats(w, meanAnnual, covAnnual, riskFreeAnnual).sharpe);
+  const wMaxSharpe = roundWithBounds(
+    optimizePortfolio(meanAnnual, covAnnual, riskFreeAnnual, 'sharpe', B, 4000),
+    w => portStats(w, meanAnnual, covAnnual, riskFreeAnnual).sharpe, B);
 
   await step('Optimising for minimum variance...');
-  const wMinVar = roundWithFloor(
-    optimizePortfolio(meanAnnual, covAnnual, riskFreeAnnual, 'variance', minW, 4000),
-    w => -quadForm(w, covAnnual));
+  const wMinVar = roundWithBounds(
+    optimizePortfolio(meanAnnual, covAnnual, riskFreeAnnual, 'variance', B, 4000),
+    w => -quadForm(w, covAnnual), B);
 
-  const wEqual = roundNeutralFloor(new Array(n).fill(1/n));
+  const wEqual = roundNeutralBounds(new Array(n).fill(1/n), B);
 
   await step('Optimising for highest return...');
-  const wMaxReturn = roundWithFloor(
-    optimizeMaxCumulativeReturn(returns, minW, 3000),
-    w => cumulativeReturnOf(returns, w));
+  const wMaxReturn = roundWithBounds(
+    optimizeMaxCumulativeReturn(returns, B, 3000),
+    w => cumulativeReturnOf(returns, w), B);
 
   await step('Building risk/return curve...');
   const minVarReturn = portStats(wMinVar, meanAnnual, covAnnual, riskFreeAnnual).return;
-  const curve = buildRiskReturnCurve(meanAnnual, covAnnual, riskFreeAnnual, minW, minVarReturn, 30);
+  const curve = buildRiskReturnCurve(meanAnnual, covAnnual, riskFreeAnnual, B, minVarReturn, 30);
 
   await step('Running Monte Carlo simulation...');
-  const monteCarlo = monteCarloCloud(meanAnnual, covAnnual, riskFreeAnnual, n, minW, 4000);
+  const monteCarlo = monteCarloCloud(meanAnnual, covAnnual, riskFreeAnnual, n, B, 4000);
+
+  await step('Comparing with the S&P 500...');
+  const seriesDates = dates.slice(1);
+  let benchmark = null, benchDaily = null;
+  if (data.benchmark) {
+    const bp = data.benchmark.prices;
+    benchDaily = [];
+    for (let t = 1; t < bp.length; t++) benchDaily.push(bp[t] / bp[t-1] - 1);
+    const bs = seriesFromDaily(benchDaily, riskFreeAnnual);
+    const annRet = bs.daily_mean * TRADING_DAYS, annStd = bs.daily_std * Math.sqrt(TRADING_DAYS);
+    benchmark = {
+      label: 'S&P 500', symbol: data.benchmark.symbol, adjusted: data.benchmark.adjusted,
+      return: annRet, std: annStd, sharpe: annStd > 0 ? (annRet - riskFreeAnnual) / annStd : 0,
+      series: Object.assign({ dates: seriesDates }, bs),
+    };
+  }
 
   await step('Computing performance series...');
   const portfolios = { max_sharpe: wMaxSharpe, min_variance: wMinVar, equal_weight: wEqual, max_return: wMaxReturn };
   const series = {};
   const rc = {};
+  const portfolioOut = {};
   const rcObj = (arr) => { const o = {}; tickers.forEach((t,i)=>{ o[t] = +arr[i].toFixed(5); }); return o; };
   for (const key in portfolios) {
-    series[key] = Object.assign({ dates: dates.slice(1) }, portfolioSeries(returns, portfolios[key], riskFreeAnnual));
-    rc[key] = rcObj(riskContribution(portfolios[key], covAnnual));
+    const w = portfolios[key];
+    const daily = returns.map(row => dot(row, w));
+    series[key] = Object.assign({ dates: seriesDates }, seriesFromDaily(daily, riskFreeAnnual));
+    rc[key] = rcObj(riskContribution(w, covAnnual));
+    const stats = portStats(w, meanAnnual, covAnnual, riskFreeAnnual);
+    const weightsObj = {};
+    tickers.forEach((t,i) => { weightsObj[t] = +w[i].toFixed(5); });
+    const bc = benchDaily ? betaAndCorr(daily, benchDaily) : { beta: null, corr: null };
+    portfolioOut[key] = { weights: weightsObj, return: stats.return, std: stats.std, sharpe: stats.sharpe, beta: bc.beta, corr_bench: bc.corr };
   }
 
   const corr = corrMatrix(dailyCov);
@@ -1189,24 +1295,18 @@ async function runFullAnalysis(data, riskFreeAnnual, progressCb) {
     stockStats[t] = { mean_return: meanAnnual[i], std_dev: sd, sharpe: sd > 0 ? (meanAnnual[i] - riskFreeAnnual) / sd : 0 };
   });
 
-  const portfolioOut = {};
-  for (const key in portfolios) {
-    const w = portfolios[key];
-    const stats = portStats(w, meanAnnual, covAnnual, riskFreeAnnual);
-    const weightsObj = {};
-    tickers.forEach((t,i) => { weightsObj[t] = +w[i].toFixed(5); });
-    portfolioOut[key] = { weights: weightsObj, return: stats.return, std: stats.std, sharpe: stats.sharpe };
-  }
-
   progressCb('Done.');
 
   return {
     tickers,
+    bounds: B,
+    cap_raised: B.hi > MAX_WEIGHT + 1e-9,
     date_range: [dates[0], dates[dates.length-1]],
     n_days: dates.length,
     risk_free_rate: riskFreeAnnual,
     stock_stats: stockStats,
     portfolios: portfolioOut,
+    benchmark,
     risk_contribution: rc,
     curve: { return: curve.map(p=>p.return), std: curve.map(p=>p.std), sharpe: curve.map(p=>p.sharpe) },
     monte_carlo: monteCarlo,
@@ -1248,6 +1348,7 @@ function extractSeries(body) {
     if (isFinite(p) && p > 0) out.push([String(r.date).slice(0, 10), p]);
   }
   if (!out.length) return null;
+  out.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   return { points: out, adjusted: adjustedRows === out.length };
 }
 
@@ -1291,16 +1392,29 @@ async function fetchTickerHistory(symbol, from, to, apiKey, fetchImpl) {
   throw new Error(lastErr);
 }
 
+/** S&P 500 benchmark: SPY (tracks the index, includes dividends when adjusted), else the ^GSPC index. */
+async function fetchBenchmark(from, to, apiKey, fetchImpl) {
+  for (const symbol of ['SPY', '^GSPC']) {
+    try {
+      const s = await fetchTickerHistory(symbol, from, to, apiKey, fetchImpl);
+      return { symbol, points: s.points, adjusted: s.adjusted };
+    } catch (e) { /* try next */ }
+  }
+  return null;
+}
+
 /**
- * Fetches every ticker (4 at a time), then aligns them on the dates where
- * all of them have a price. Returns the wide price matrix plus notes about
- * skipped tickers and which holding (if any) shortened the sample.
+ * Fetches every ticker (4 at a time) plus the S&P 500 benchmark, then aligns
+ * the holdings on the dates where all of them have a price. The benchmark is
+ * carried onto those dates (last available close), so it never shortens the
+ * sample the optimiser sees.
  */
 async function fetchPortfolioPrices(tickers, years, apiKey, onProgress, fetchImpl) {
   const to = new Date();
   const from = new Date(to);
   from.setFullYear(from.getFullYear() - years);
   const fromStr = isoDate(from), toStr = isoDate(to);
+  const total = tickers.length + 1;
 
   const results = {};
   const failures = [];
@@ -1318,7 +1432,7 @@ async function fetchPortfolioPrices(tickers, years, apiKey, onProgress, fetchImp
         failures.push({ ticker: t, reason: e.message });
       }
       done++;
-      onProgress && onProgress(done, tickers.length, t);
+      onProgress && onProgress(done, total, t);
     }
   }
   await Promise.all(Array.from({ length: Math.min(4, tickers.length) }, worker));
@@ -1330,12 +1444,14 @@ async function fetchPortfolioPrices(tickers, years, apiKey, onProgress, fetchImp
     throw new Error(`Need at least 2 holdings with price data. No data for: ${why || 'all tickers'}.`);
   }
 
+  const bm = await fetchBenchmark(fromStr, toStr, apiKey, fetchImpl);
+  onProgress && onProgress(total, total, 'S&P 500');
+
   const maps = {};
   let latestStart = null, latestStartTicker = null;
   for (const t of ok) {
-    const m = new Map(results[t].points);
-    maps[t] = m;
-    const first = results[t].points.reduce((a, p) => (p[0] < a ? p[0] : a), '9999-12-31');
+    maps[t] = new Map(results[t].points);
+    const first = results[t].points[0][0];
     if (latestStart === null || first > latestStart) { latestStart = first; latestStartTicker = t; }
   }
   let common = Array.from(maps[ok[0]].keys());
@@ -1344,7 +1460,24 @@ async function fetchPortfolioPrices(tickers, years, apiKey, onProgress, fetchImp
 
   const prices = common.map(d => ok.map(t => maps[t].get(d)));
 
-  // Flag a holding whose history starts well after the requested window opens.
+  let benchmark = null, benchmarkNote = null;
+  if (bm) {
+    const pts = bm.points;
+    const aligned = [];
+    let j = -1;
+    for (const d of common) {
+      while (j + 1 < pts.length && pts[j + 1][0] <= d) j++;
+      aligned.push(j >= 0 ? pts[j][1] : null);
+    }
+    if (aligned.length && aligned.every(x => x != null)) {
+      benchmark = { symbol: bm.symbol, adjusted: bm.adjusted, prices: aligned };
+    } else {
+      benchmarkNote = "FMP's S&P 500 history doesn't cover the whole sample, so the benchmark is left out.";
+    }
+  } else {
+    benchmarkNote = "Couldn't load S&P 500 data (SPY or ^GSPC) from FMP, so the benchmark is left out.";
+  }
+
   const requestedDays = (to - from) / 86400000;
   const shortDays = (to - new Date(latestStart)) / 86400000;
   const shortenedBy = shortDays < requestedDays * 0.9 ? latestStartTicker : null;
@@ -1357,6 +1490,8 @@ async function fetchPortfolioPrices(tickers, years, apiKey, onProgress, fetchImp
     allAdjusted: ok.every(t => results[t].adjusted),
     shortenedBy,
     shortenedStart: latestStart,
+    benchmark,
+    benchmarkNote,
   };
 }
 </script>
@@ -1369,6 +1504,7 @@ async function fetchPortfolioPrices(tickers, years, apiKey, onProgress, fetchImp
 const COLORS = {
   text: '#e8edf4', dim: '#7c8a9e', faint: '#4a5568', line: '#1f2937',
   accent: '#4ad9c4', gold: '#e8b84a', red: '#e8584a', blue: '#5a8fe8', purple: '#a78bfa',
+  green: '#3ecf8e', bench: '#c3ccd8',
 };
 
 const PALETTE = ['#4ad9c4','#e8b84a','#5a8fe8','#e8584a','#a78bfa','#f472b6','#34d399',
@@ -1379,7 +1515,10 @@ Chart.defaults.color = COLORS.dim;
 Chart.defaults.borderColor = COLORS.line;
 
 function fmtPct(x, d=1){ return (x*100).toFixed(d) + '%'; }
+function fmtSignedPct(x, d=1){ return (x >= 0 ? '+' : '') + (x*100).toFixed(d) + '%'; }
 function fmtNum(x, d=2){ return x.toFixed(d); }
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtMonth(iso){ return MONTHS[+iso.slice(5,7) - 1] + ' ' + iso.slice(2,4); }
 
 const store = {
   get(k, fallback) { try { const v = localStorage.getItem('pfopt.' + k); return v === null ? fallback : JSON.parse(v); } catch { return fallback; } },
@@ -1529,10 +1668,10 @@ async function runOptimisation() {
 
   try {
     const data = await fetchPortfolioPrices(tickers, years, apiKey, (done, total, t) => {
-      processingStatus.textContent = `Fetched ${t} (${done}/${total})`;
+      processingStatus.textContent = done < total ? `Fetched ${t} (${done}/${total - 1})` : 'Fetched S&P 500 benchmark';
       progressFill.style.width = (done / total * 60) + '%';
     });
-    const stages = 7; let stage = 0;
+    const stages = 8; let stage = 0;
     const result = await runFullAnalysis(data, riskFree, (msg) => {
       processingStatus.textContent = msg;
       stage++;
@@ -1558,24 +1697,30 @@ async function runOptimisation() {
 // ═══════════════════════════════════════════════════════════
 
 function renderDashboard(DATA){
-  document.getElementById('overview-cards').innerHTML = '';
-  document.getElementById('portfolio-sheet-row').innerHTML = '';
-  document.querySelector('#stock-stats-table tbody').innerHTML = '';
-  document.querySelector('#weights-table tbody').innerHTML = '';
-  document.getElementById('compare-toggles').innerHTML = '';
-  document.querySelector('#compare-table tbody').innerHTML = '';
+  ['overview-cards','portfolio-sheet-row','compare-toggles','cmp-cards'].forEach(id => { document.getElementById(id).innerHTML = ''; });
+  ['#stock-stats-table tbody','#weights-table tbody','#compare-table tbody'].forEach(sel => { document.querySelector(sel).innerHTML = ''; });
   Object.values(Chart.instances).forEach(c => c.destroy());
 
   const F = DATA.fetch;
+  const P = DATA.portfolios;
+  const BM = DATA.benchmark;
+  const B = DATA.bounds;
+  const LIMITS = `${fmtPct(B.lo,0)}–${fmtPct(B.hi,0)}`;
+  const isCap = w => w >= B.hi - 1e-6;
+  const isFloor = w => w <= B.lo + 1e-6;
+
   document.getElementById('header-holdings').textContent = `${DATA.tickers.length} holdings · ${DATA.tickers.join(', ')}`;
   document.getElementById('header-dates').textContent = DATA.date_range[0] + ' → ' + DATA.date_range[1];
   document.getElementById('header-ndays').textContent = DATA.n_days.toLocaleString();
   document.getElementById('header-rf').textContent = fmtPct(DATA.risk_free_rate, 2);
+  document.getElementById('header-limits').textContent = LIMITS + ' per holding';
   document.getElementById('header-source').textContent = F.allAdjusted ? 'FMP, dividend-adjusted' : 'FMP, close';
 
   const notices = [];
   if (F.failures.length) notices.push(`Left out (no price data from FMP): ${F.failures.map(f => `${f.ticker} — ${f.reason}`).join('; ')}.`);
   if (F.shortenedBy) notices.push(`${F.shortenedBy} only has prices from ${F.shortenedStart}, so the sample starts there for every holding.`);
+  if (DATA.cap_raised) notices.push(`With only ${DATA.tickers.length} holdings, a 30% cap can't add up to 100%, so the cap is ${fmtPct(B.hi,0)} here.`);
+  if (F.benchmarkNote) notices.push(F.benchmarkNote);
   const noticeBar = document.getElementById('notice-bar');
   noticeBar.textContent = notices.join(' ');
   noticeBar.hidden = notices.length === 0;
@@ -1589,14 +1734,12 @@ function renderDashboard(DATA){
     }, extra);
   }
 
-  const P = DATA.portfolios;
-
   // ───── TOP STAT CARDS ─────
   [
-    {key:'max_sharpe', label:'Max Sharpe', sub:'Highest risk-adjusted return, every holding ≥1%', cls:'lead', color:COLORS.gold},
-    {key:'max_return', label:'Highest Return', sub:'Best realised return, every holding ≥1%', cls:'lead-purple', color:COLORS.purple},
+    {key:'max_sharpe', label:'Max Sharpe', sub:`Highest risk-adjusted return · each holding ${LIMITS}`, cls:'lead', color:COLORS.gold},
+    {key:'max_return', label:'Highest Return', sub:`Best realised return · each holding ${LIMITS}`, cls:'lead-purple', color:COLORS.purple},
     {key:'equal_weight', label:'Equal Weight', sub:`1/${DATA.tickers.length} allocation across all holdings`, cls:'', color:COLORS.red},
-    {key:'min_variance', label:'Minimum Variance', sub:'Lowest risk, every holding ≥1%', cls:'', color:COLORS.blue},
+    {key:'min_variance', label:'Minimum Variance', sub:`Lowest risk · each holding ${LIMITS}`, cls:'', color:COLORS.blue},
   ].forEach(o => {
     const p = P[o.key];
     const div = document.createElement('div');
@@ -1616,24 +1759,28 @@ function renderDashboard(DATA){
   const nSims = DATA.monte_carlo.std.length.toLocaleString();
   document.getElementById('cloud-count-badge').textContent = `${nSims} simulations`;
   document.getElementById('legend-cloud').textContent = `Random portfolios (${nSims})`;
+  document.getElementById('legend-bench').hidden = !BM;
+
+  const rrSets = [
+    {
+      label:'Random portfolios', data: DATA.monte_carlo.std.map((v,i)=>({x:v,y:DATA.monte_carlo.return[i]})),
+      backgroundColor: DATA.monte_carlo.sharpe.map(s => {
+        const t = Math.max(0, Math.min(1, (s - 0.2) / 1.8));
+        return `rgba(${Math.round(42 + t*30)},${Math.round(60 + t*157)},${Math.round(80 + t*116)},0.55)`;
+      }),
+      pointRadius: 2.2, showLine:false,
+    },
+    Object.assign(scatterDataset('Best achievable', DATA.curve.std, DATA.curve.return, COLORS.accent, 'line', 0), {showLine:true, borderWidth:3, fill:false, tension:0.15}),
+    scatterDataset('Max Sharpe', [P.max_sharpe.std], [P.max_sharpe.return], COLORS.gold, 'star', 11),
+    scatterDataset('Highest Return', [P.max_return.std], [P.max_return.return], COLORS.purple, 'star', 11),
+    scatterDataset('Min Variance', [P.min_variance.std], [P.min_variance.return], COLORS.blue, 'rectRot', 9),
+    scatterDataset('Equal Weight', [P.equal_weight.std], [P.equal_weight.return], COLORS.red, 'triangle', 9),
+  ];
+  if (BM) rrSets.push(scatterDataset('S&P 500', [BM.std], [BM.return], COLORS.bench, 'crossRot', 9, {borderWidth:2.5}));
 
   new Chart(document.getElementById('chart-riskreturn-main'), {
     type: 'scatter',
-    data: { datasets: [
-      {
-        label:'Random portfolios', data: DATA.monte_carlo.std.map((v,i)=>({x:v,y:DATA.monte_carlo.return[i]})),
-        backgroundColor: DATA.monte_carlo.sharpe.map(s => {
-          const t = Math.max(0, Math.min(1, (s - 0.2) / 1.8));
-          return `rgba(${Math.round(42 + t*30)},${Math.round(60 + t*157)},${Math.round(80 + t*116)},0.55)`;
-        }),
-        pointRadius: 2.2, showLine:false,
-      },
-      Object.assign(scatterDataset('Best achievable', DATA.curve.std, DATA.curve.return, COLORS.accent, 'line', 0), {showLine:true, borderWidth:3, fill:false, tension:0.15}),
-      scatterDataset('Max Sharpe', [P.max_sharpe.std], [P.max_sharpe.return], COLORS.gold, 'star', 11),
-      scatterDataset('Highest Return', [P.max_return.std], [P.max_return.return], COLORS.purple, 'star', 11),
-      scatterDataset('Min Variance', [P.min_variance.std], [P.min_variance.return], COLORS.blue, 'rectRot', 9),
-      scatterDataset('Equal Weight', [P.equal_weight.std], [P.equal_weight.return], COLORS.red, 'triangle', 9),
-    ]},
+    data: { datasets: rrSets },
     options: {
       responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{display:false}, tooltip:{callbacks:{label:(c)=>`${c.dataset.label}: σ=${fmtPct(c.parsed.x)}  r=${fmtPct(c.parsed.y)}`}} },
@@ -1653,14 +1800,17 @@ function renderDashboard(DATA){
   if (ms.std <= ew.std && ms.return >= ew.return) vsEqual = 'It sits up and to the left of the equal-weight red triangle: more return for less risk.';
   else if (ms.std <= ew.std) vsEqual = 'It sits to the left of the equal-weight red triangle, giving up some return for noticeably less risk.';
   else vsEqual = 'It takes on more risk than the equal-weight red triangle, but earns enough extra return to more than pay for it.';
+  const benchSentence = BM
+    ? ` The grey cross is the S&P 500 over the same period (${fmtPct(BM.return)} return, ${fmtPct(BM.std)} risk).`
+    : '';
 
   document.getElementById('overview-insight').innerHTML = `
-    Each grey dot is one of ${nSims} randomly weighted portfolios built from your ${DATA.tickers.length} holdings, every one keeping
-    each holding at 1% or more. The teal line is the best achievable trade-off: for each level of return, the lowest-risk
-    mix of these holdings under the same 1% minimum. No random weighting sits above it.
+    Each grey dot is one of ${nSims} randomly weighted portfolios built from your ${DATA.tickers.length} holdings, each holding kept
+    between ${fmtPct(B.lo,0)} and ${fmtPct(B.hi,0)}. The teal line is the best achievable trade-off: for each level of return, the lowest-risk
+    mix of these holdings within the same limits. No random weighting sits above it.
     The <span style="color:${COLORS.gold}; font-weight:600;">gold star</span> is the portfolio with the highest Sharpe ratio
     (<strong>${fmtNum(ms.sharpe)}</strong>), led by ${topList(msTop, 3)}. ${vsEqual}
-    The blue diamond is the minimum-variance portfolio at the far left of the line.
+    The blue diamond is the minimum-variance portfolio at the far left of the line.${benchSentence}
     The <span style="color:${COLORS.purple}; font-weight:600;">purple star</span> answers a different question: which weights would
     have produced the highest <em>realised</em> return over this exact price path. It grew $100 into
     <strong>$${(100*(1+mrSeries.total_return)).toFixed(2)}</strong>, led by ${topList(mrTop, 2)}. It can sit off the teal line
@@ -1718,6 +1868,7 @@ function renderDashboard(DATA){
   buildPortfolioSheetCard('equal_weight', 'Equal Weight', `1/${DATA.tickers.length} baseline`, COLORS.red, null);
 
   // ───── WEIGHTS TABLE ─────
+  document.getElementById('weights-limit-badge').textContent = `${LIMITS} per holding`;
   const weightCols = ['max_sharpe','max_return','min_variance','equal_weight'];
   const weightOrder = DATA.tickers.slice().sort((a,b) => P.max_sharpe.weights[b] - P.max_sharpe.weights[a] || a.localeCompare(b));
   const wBody = document.querySelector('#weights-table tbody');
@@ -1726,7 +1877,8 @@ function renderDashboard(DATA){
     tr.innerHTML = `<td><span class="ticker-dot" style="background:${PALETTE[DATA.tickers.indexOf(t) % PALETTE.length]}"></span>${t}</td>` +
       weightCols.map(k => {
         const w = P[k].weights[t];
-        return `<td class="num${w <= 0.0100001 ? ' floor' : ''}">${fmtPct(w, 0)}</td>`;
+        const cls = k === 'equal_weight' ? '' : isCap(w) ? ' cap' : isFloor(w) ? ' floor' : '';
+        return `<td class="num${cls}">${fmtPct(w, 0)}</td>`;
       }).join('');
     wBody.appendChild(tr);
   });
@@ -1770,103 +1922,197 @@ function renderDashboard(DATA){
     sBody.appendChild(tr);
   });
 
-  // ───── COMPARISON TAB ─────
+  // ═══════════════════════════════════════════════════════════
+  // COMPARISON TAB
+  // ═══════════════════════════════════════════════════════════
+
+  const benchLabel = BM ? `S&P 500 (${BM.symbol}${BM.adjusted ? ', incl. dividends' : ', price only'})` : null;
+  document.getElementById('cmp-sub').textContent =
+    `${DATA.date_range[0]} → ${DATA.date_range[1]} · ` + (BM ? `benchmark: ${benchLabel}` : 'benchmark unavailable');
+
   const compareConfig = [
     {key:'max_sharpe', label:'Max Sharpe', color:COLORS.gold},
     {key:'max_return', label:'Highest Return', color:COLORS.purple},
     {key:'min_variance', label:'Min Variance', color:COLORS.blue},
     {key:'equal_weight', label:'Equal Weight', color:COLORS.red},
   ];
-  const activeCompare = new Set(compareConfig.map(c => c.key));
+  if (BM) compareConfig.push({key:'benchmark', label:'S&P 500', color:COLORS.bench, bench:true});
+  const seriesOf = key => key === 'benchmark' ? BM.series : DATA.series[key];
+  const statsOf = key => key === 'benchmark' ? BM : P[key];
 
+  // Summary cards
+  const benchTotal = BM ? BM.series.total_return : null;
+  const cardsWrap = document.getElementById('cmp-cards');
+  compareConfig.forEach(c => {
+    const s = seriesOf(c.key);
+    const st = statsOf(c.key);
+    const endValue = 100 * (1 + s.total_return);
+    let delta;
+    if (c.bench) delta = `<span class="delta neutral">Benchmark</span>`;
+    else if (BM) {
+      const d = s.total_return - benchTotal;
+      delta = `<span class="delta ${d >= 0 ? 'up' : 'down'}">${fmtSignedPct(d)} vs S&amp;P</span>`;
+    } else delta = '';
+    const beta = c.bench ? '1.00' : (st.beta != null ? fmtNum(st.beta) : '—');
+    const card = document.createElement('div');
+    card.className = 'cmp-card' + (c.bench ? ' bench' : '');
+    card.style.setProperty('--c', c.color);
+    card.innerHTML = `
+      <div class="cmp-card-name"><span><span class="tdot" style="background:${c.color}"></span>${c.label}</span></div>
+      <div class="cmp-card-value">$${endValue.toFixed(2)}</div>
+      <div class="cmp-card-row"><span>${fmtSignedPct(s.total_return)} total</span>${delta}</div>
+      <div class="cmp-card-foot">
+        <span>Max DD <b>${fmtPct(s.max_drawdown)}</b></span>
+        <span>Sharpe <b>${fmtNum(st.sharpe)}</b></span>
+        ${BM ? `<span>Beta <b>${beta}</b></span>` : ''}
+      </div>`;
+    cardsWrap.appendChild(card);
+  });
+
+  // Toggles
+  const activeCompare = new Set(compareConfig.map(c => c.key));
   const toggleWrap = document.getElementById('compare-toggles');
   compareConfig.forEach(c => {
     const btn = document.createElement('button');
     btn.className = 'toggle-btn active';
     btn.type = 'button';
-    btn.textContent = c.label;
-    btn.style.borderColor = c.color;
+    btn.setAttribute('aria-pressed', 'true');
+    btn.innerHTML = `<span class="tdot" style="background:${c.color}"></span>${c.label}`;
     btn.addEventListener('click', () => {
-      if (activeCompare.has(c.key)) { activeCompare.delete(c.key); btn.classList.remove('active'); }
-      else { activeCompare.add(c.key); btn.classList.add('active'); }
+      const on = !activeCompare.has(c.key);
+      if (on) activeCompare.add(c.key); else activeCompare.delete(c.key);
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-pressed', String(on));
       renderCompareCharts();
     });
     toggleWrap.appendChild(btn);
   });
 
+  // Charts
   let growthChart, ddChart, rollSharpeChart;
-  function lineSet(c, field, width){
-    return { label: c.label, data: DATA.series[c.key][field], borderColor: c.color, backgroundColor:'transparent', borderWidth:width, pointRadius:0, tension:0.05, spanGaps:false };
+  const labels = DATA.series.max_sharpe.dates;
+  function lineSet(c, field){
+    return {
+      label: c.label, data: seriesOf(c.key)[field], borderColor: c.color, backgroundColor: 'transparent',
+      borderWidth: c.bench ? 1.6 : 1.8, borderDash: c.bench ? [6, 4] : [], pointRadius: 0, pointHoverRadius: 3,
+      tension: 0.05, spanGaps: false, order: c.bench ? 0 : 1,
+    };
   }
-  function lineOpts(yTick, tipFmt, maxTicks){
-    return { responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{position:'top', labels:{boxWidth:10,font:{size:11}}}, tooltip:{callbacks:{label:tipFmt}}},
-      scales:{ x:{grid:{display:false}, ticks:{maxTicksLimit:maxTicks,font:{size:9}}}, y:{grid:{color:COLORS.line}, ticks:{callback:yTick,font:{size:9}}} } };
+  function lineOpts(yTick, tipFmt, extraY){
+    return {
+      responsive:true, maintainAspectRatio:false, animation:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ display:false },
+        tooltip:{ itemSort:(a,b)=>b.parsed.y - a.parsed.y, callbacks:{ title:(items)=>items[0].label, label:tipFmt } },
+      },
+      scales:{
+        x:{ grid:{display:false}, ticks:{ maxTicksLimit:7, maxRotation:0, autoSkipPadding:16, font:{size:10},
+            callback(v){ return fmtMonth(this.getLabelForValue(v)); } } },
+        y:Object.assign({ grid:{color:'rgba(31,41,55,0.7)'}, border:{display:false}, ticks:{callback:yTick, font:{size:10}} }, extraY || {}),
+      }
+    };
   }
   function renderCompareCharts(){
-    const labels = DATA.series.max_sharpe.dates;
     const active = compareConfig.filter(c => activeCompare.has(c.key));
     if (growthChart) growthChart.destroy();
     if (ddChart) ddChart.destroy();
     if (rollSharpeChart) rollSharpeChart.destroy();
     growthChart = new Chart(document.getElementById('chart-compare-growth'), {
-      type:'line', data:{labels, datasets: active.map(c => lineSet(c, 'cumulative', 1.8))},
-      options: lineOpts(v=>'$'+v, (c)=>`${c.dataset.label}: $${c.parsed.y.toFixed(2)}`, 8)
+      type:'line', data:{labels, datasets: active.map(c => lineSet(c, 'cumulative'))},
+      options: lineOpts(v=>'$'+v, (c)=>` ${c.dataset.label}: $${c.parsed.y.toFixed(2)}`)
     });
     ddChart = new Chart(document.getElementById('chart-compare-drawdown'), {
-      type:'line', data:{labels, datasets: active.map(c => lineSet(c, 'drawdown', 1.4))},
-      options: lineOpts(v=>v+'%', (c)=>`${c.dataset.label}: ${c.parsed.y.toFixed(1)}%`, 6)
+      type:'line', data:{labels, datasets: active.map(c => lineSet(c, 'drawdown'))},
+      options: lineOpts(v=>v+'%', (c)=>` ${c.dataset.label}: ${c.parsed.y.toFixed(1)}%`, {max:0})
     });
     rollSharpeChart = new Chart(document.getElementById('chart-compare-rollsharpe'), {
-      type:'line', data:{labels, datasets: active.map(c => lineSet(c, 'rolling_sharpe', 1.4))},
-      options: lineOpts(v=>v, (c)=>`${c.dataset.label}: ${c.parsed.y.toFixed(2)}`, 6)
+      type:'line', data:{labels, datasets: active.map(c => lineSet(c, 'rolling_sharpe'))},
+      options: lineOpts(v=>v, (c)=>` ${c.dataset.label}: ${c.parsed.y.toFixed(2)}`)
     });
   }
   renderCompareCharts();
 
+  // Performance table — best value in each column highlighted
+  const rows = compareConfig.map(c => {
+    const s = seriesOf(c.key), st = statsOf(c.key);
+    return {
+      c, total: s.total_return, vs: (BM && !c.bench) ? s.total_return - benchTotal : null,
+      ann: st.return, vol: st.std, sharpe: st.sharpe, dd: s.max_drawdown,
+      beta: c.bench ? 1 : st.beta, corr: c.bench ? 1 : st.corr_bench,
+    };
+  });
+  const best = {
+    total: Math.max(...rows.map(r => r.total)),
+    ann: Math.max(...rows.map(r => r.ann)),
+    vol: Math.min(...rows.map(r => r.vol)),
+    sharpe: Math.max(...rows.map(r => r.sharpe)),
+    dd: Math.max(...rows.map(r => r.dd)),
+  };
+  const cell = (val, txt, key) => `<td class="num${key && Math.abs(val - best[key]) < 1e-12 ? ' best' : ''}">${txt}</td>`;
   const cBody = document.querySelector('#compare-table tbody');
-  compareConfig.forEach(c => {
-    const p = P[c.key], s = DATA.series[c.key];
+  rows.forEach(r => {
     const tr = document.createElement('tr');
+    if (r.c.bench) tr.className = 'bench-row';
+    const vsCell = r.vs == null ? `<td class="num muted">—</td>`
+      : `<td class="num"><span class="delta ${r.vs >= 0 ? 'up' : 'down'}">${fmtSignedPct(r.vs)}</span></td>`;
     tr.innerHTML = `
-      <td><span class="ticker-dot" style="background:${c.color}"></span>${c.label}</td>
-      <td class="num">${fmtPct(s.total_return)}</td>
-      <td class="num">${fmtPct(p.return)}</td>
-      <td class="num">${fmtPct(p.std)}</td>
-      <td class="num">${fmtNum(p.sharpe)}</td>
-      <td class="num" style="color:${COLORS.red}">${fmtPct(s.max_drawdown)}</td>
-      <td class="num">${fmtNum(s.skew)}</td>
-      <td class="num">${fmtNum(s.kurtosis)}</td>`;
+      <td class="name"><span class="ticker-dot" style="background:${r.c.color}"></span>${r.c.label}</td>
+      ${cell(r.total, fmtSignedPct(r.total), 'total')}
+      ${vsCell}
+      ${cell(r.ann, fmtPct(r.ann), 'ann')}
+      ${cell(r.vol, fmtPct(r.vol), 'vol')}
+      ${cell(r.sharpe, fmtNum(r.sharpe), 'sharpe')}
+      ${cell(r.dd, fmtPct(r.dd), 'dd')}
+      <td class="num">${r.beta != null ? fmtNum(r.beta) : '—'}</td>
+      <td class="num">${r.corr != null ? fmtNum(r.corr) : '—'}</td>`;
     cBody.appendChild(tr);
   });
 
+  // Insight
   const ewS = DATA.series.equal_weight, msS = DATA.series.max_sharpe, mrS = DATA.series.max_return;
-  const returnDelta = msS.total_return - ewS.total_return;
   const msW = Object.entries(P.max_sharpe.weights).sort((a,b)=>b[1]-a[1]);
-  const floorTickers = msW.filter(([,v]) => v <= 0.0100001).map(([t]) => t);
-  const bigTickers = msW.filter(([,v]) => v >= 0.04).map(([t]) => t).slice(0,4);
+  const floorTickers = msW.filter(([,v]) => isFloor(v)).map(([t]) => t);
+  const capTickers = msW.filter(([,v]) => isCap(v)).map(([t]) => t);
   const floorText = floorTickers.length
-    ? `${floorTickers.slice(0,7).join(', ')}${floorTickers.length > 7 ? ' and others' : ''} were held at the 1% minimum`
-    : `no holding needed to be cut to the 1% minimum`;
-  const mrBeatsMs = mrS.total_return > msS.total_return;
+    ? `${floorTickers.slice(0,6).join(', ')}${floorTickers.length > 6 ? ' and others' : ''} sit at the ${fmtPct(B.lo,0)} minimum`
+    : `no holding was cut to the ${fmtPct(B.lo,0)} minimum`;
+  const capText = capTickers.length
+    ? `, while ${capTickers.join(', ')} ${capTickers.length > 1 ? 'are' : 'is'} held at the ${fmtPct(B.hi,0)} cap`
+    : '';
+
+  let benchPara = '';
+  if (BM) {
+    const port = compareConfig.filter(c => !c.bench);
+    const beat = port.filter(c => DATA.series[c.key].total_return > benchTotal).map(c => c.label);
+    const beatText = beat.length === port.length ? 'All four portfolios beat the S&P 500'
+      : beat.length === 0 ? 'None of the four portfolios beat the S&P 500'
+      : `${beat.join(', ')} beat the S&P 500, the others did not`;
+    benchPara = `
+      <strong>$100 in the S&amp;P 500 grew to $${(100*(1+benchTotal)).toFixed(2)}</strong> over the period, with a worst drawdown of
+      <strong>${fmtPct(BM.series.max_drawdown)}</strong>. ${beatText}. The max-Sharpe portfolio finished
+      <strong>${fmtSignedPct(msS.total_return - benchTotal)}</strong> against the index, with a beta of
+      <strong>${fmtNum(P.max_sharpe.beta)}</strong> (it moved about ${fmtNum(P.max_sharpe.beta)} times as much as the market on an average day)
+      and a correlation of <strong>${fmtNum(P.max_sharpe.corr_bench)}</strong>.
+      <br><br>`;
+  }
 
   document.getElementById('compare-insight').innerHTML = `
-    Over the sample period, <strong>$100 in the equal-weight portfolio grew to $${(100*(1+ewS.total_return)).toFixed(2)}</strong>,
-    while the same $100 in the <span style="color:${COLORS.gold}; font-weight:600;">max-Sharpe portfolio grew to $${(100*(1+msS.total_return)).toFixed(2)}</span>,
-    a difference of <strong>${returnDelta >= 0 ? '+' : ''}${fmtPct(returnDelta)}</strong> in cumulative terms.
-    Its max drawdown was <strong>${fmtPct(msS.max_drawdown)}</strong> against <strong>${fmtPct(ewS.max_drawdown)}</strong> for equal weight
-    (${msS.max_drawdown >= ewS.max_drawdown ? 'a smaller' : 'a larger'} peak-to-trough loss).
-    Most of the gap comes from <strong>concentration</strong>: the optimiser moved capital away from weaker risk-adjusted names
-    (${floorText}) and into the strongest ones${bigTickers.length ? ` (${bigTickers.join(', ')})` : ''}.
+    ${benchPara}
+    Against equal weight, the <span style="color:${COLORS.gold}; font-weight:600;">max-Sharpe portfolio</span> finished at
+    <strong>$${(100*(1+msS.total_return)).toFixed(2)}</strong> versus <strong>$${(100*(1+ewS.total_return)).toFixed(2)}</strong>,
+    with a max drawdown of <strong>${fmtPct(msS.max_drawdown)}</strong> against <strong>${fmtPct(ewS.max_drawdown)}</strong>.
+    The difference comes from concentration within the ${LIMITS} limits: ${floorText}${capText}.
     <br><br>
     The <span style="color:${COLORS.purple}; font-weight:600;">Highest Return</span> portfolio
-    ${mrBeatsMs ? 'went further still' : 'finished'} at <strong>$${(100*(1+mrS.total_return)).toFixed(2)}</strong>, concentrating as heavily
-    as the 1% minimum allows in the names that actually performed best. Max Sharpe balances return against volatility using
-    averages, while Highest Return is fitted to what happened and will usually look best in a backtest. Any optimisation on
-    past prices can overfit the sample period, so none of these rankings is guaranteed to hold going forward.
+    ${mrS.total_return > msS.total_return ? 'went further still' : 'finished'} at <strong>$${(100*(1+mrS.total_return)).toFixed(2)}</strong>
+    because it is fitted to what actually happened. It will usually look best in a backtest, and any optimisation on past prices
+    can overfit the sample period, so none of these rankings is guaranteed to hold going forward.
   `;
 
-  // ───── CORRELATION TAB ─────
+  // ═══════════════════════════════════════════════════════════
+  // CORRELATION TAB
+  // ═══════════════════════════════════════════════════════════
   (function(){
     const tk = DATA.correlation.tickers;
     const matrix = DATA.correlation.matrix;
@@ -1882,11 +2128,9 @@ function renderDashboard(DATA){
         let bg, fg;
         if (i === j) { bg = '#1f2937'; fg = COLORS.dim; }
         else if (v >= 0) {
-          // positive: dark → teal
           bg = `rgba(${Math.round(16 + (v+1)/2*8)},${Math.round(60 + v*157)},${Math.round(80 + v*100)},${0.25 + v*0.55})`;
           fg = v > 0.5 ? '#fff' : COLORS.dim;
         } else {
-          // negative: separate red gradient, deeper red the more negative
           const a = -v;
           bg = `rgba(232,88,74,${0.18 + a*0.72})`;
           fg = a > 0.35 ? '#fff' : '#f3b1a9';
@@ -1896,7 +2140,7 @@ function renderDashboard(DATA){
     });
     html += `</div>`;
     html += `
-      <div style="display:flex; align-items:center; gap:10px; margin-top:18px; font-family:var(--mono); font-size:10.5px; color:${COLORS.dim};">
+      <div style="display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-top:18px; font-family:var(--mono); font-size:10.5px; color:${COLORS.dim};">
         <span>−1.0</span>
         <div style="width:220px; max-width:50vw; height:8px; border-radius:4px; background:linear-gradient(90deg, rgba(232,88,74,0.9) 0%, rgba(232,88,74,0.18) 49.5%, rgba(20,60,80,0.25) 50.5%, rgba(24,217,180,0.8) 100%);"></div>
         <span>+1.0</span>
