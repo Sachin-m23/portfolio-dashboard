@@ -457,12 +457,14 @@ footer{
 .link-btn:hover{color:var(--text);}
 .settings-row{
   display:grid;
-  grid-template-columns:1fr 1fr 1.6fr;
+  grid-template-columns:1fr 1fr;
   gap:14px;
   margin-top:26px;
 }
-@media(max-width:600px){ .settings-row{grid-template-columns:1fr 1fr;} .settings-row .key-field{grid-column:span 2;} }
-.settings-row input, .settings-row select{
+.key-row{margin-top:14px; display:flex; flex-direction:column; gap:10px;}
+.key-row .link-btn{align-self:flex-start; color:var(--text-faint);}
+.key-row .link-btn:hover{color:var(--accent);}
+.settings-row input, .settings-row select, .key-row input{
   width:100%;
   background:var(--bg-panel-2);
   border:1px solid var(--line);
@@ -592,9 +594,12 @@ footer{
         <label class="field-label" for="rf-input">Risk-free rate</label>
         <div class="rf-wrap"><input type="number" id="rf-input" value="1.2" step="0.1" min="0" max="20"><span>%</span></div>
       </div>
-      <div class="key-field">
-        <label class="field-label" for="key-input">FMP API key</label>
-        <input type="text" id="key-input" autocomplete="off" spellcheck="false" value="3URryNYomrF4STDsjWcuROvHcpZp4vEE">
+    </div>
+
+    <div class="key-row">
+      <button class="link-btn" id="key-toggle" type="button">Use a different FMP API key</button>
+      <div id="key-field" hidden>
+        <input type="password" id="key-input" autocomplete="off" spellcheck="false" placeholder="Paste an FMP API key (leave blank to use the built-in key)">
       </div>
     </div>
 
@@ -1417,7 +1422,18 @@ let tickers = store.get('tickers', []);
 if (!Array.isArray(tickers)) tickers = [];
 rfInput.value = store.get('rf', rfInput.value);
 lookbackSelect.value = String(store.get('years', lookbackSelect.value));
-keyInput.value = store.get('key', keyInput.value);
+
+// Built-in FMP key, kept out of the page so it never appears on screen.
+const BUILT_IN_KEY = atob('RUV2NHBacGNIdk9SdWNXanNEVFM0RnJtb1lOeXJSVTM=').split('').reverse().join('');
+try { localStorage.removeItem('pfopt.key'); } catch {}
+keyInput.value = store.get('customKey', '');
+const keyField = document.getElementById('key-field');
+const keyToggle = document.getElementById('key-toggle');
+keyField.hidden = !keyInput.value;
+keyToggle.addEventListener('click', () => {
+  keyField.hidden = !keyField.hidden;
+  if (!keyField.hidden) keyInput.focus();
+});
 
 function setStatus(msg, isError) {
   inputStatus.textContent = msg || '';
@@ -1498,12 +1514,12 @@ renderChips();
 async function runOptimisation() {
   if (tickerInput.value.trim()) { addTickers(tickerInput.value); tickerInput.value = ''; }
   if (tickers.length < 2) { setStatus('Add at least 2 tickers.', true); return; }
-  const apiKey = keyInput.value.trim();
-  if (!apiKey) { setStatus('Enter your FMP API key.', true); return; }
+  const customKey = keyInput.value.trim();
+  const apiKey = customKey || BUILT_IN_KEY;
   const rfPct = parseFloat(rfInput.value);
   const riskFree = (isNaN(rfPct) ? 1.2 : rfPct) / 100;
   const years = parseInt(lookbackSelect.value, 10) || 3;
-  store.set('rf', rfInput.value); store.set('years', years); store.set('key', apiKey);
+  store.set('rf', rfInput.value); store.set('years', years); store.set('customKey', customKey);
 
   setStatus('');
   runBtn.disabled = true;
@@ -1863,14 +1879,29 @@ function renderDashboard(DATA){
       html += `<div style="display:flex; align-items:center; color:${COLORS.dim}; padding-right:4px; justify-content:flex-end;">${rowT}</div>`;
       tk.forEach((colT, j) => {
         const v = matrix[i][j];
-        let r,g,b;
-        if (v >= 0) { r = Math.round(16 + (v+1)/2*8); g = Math.round(60 + v*157); b = Math.round(80 + v*100); }
-        else { r = Math.round(200 * -v + 16); g = 40; b = 50; }
-        const bg = i===j ? '#1f2937' : `rgba(${r},${g},${b},${0.25+Math.abs(v)*0.55})`;
-        html += `<div title="${rowT}-${colT}: ${v.toFixed(2)}" style="height:${cellSize}px; display:flex; align-items:center; justify-content:center; background:${bg}; border-radius:2px; color:${Math.abs(v)>0.5?'#fff':COLORS.dim};">${v.toFixed(2)}</div>`;
+        let bg, fg;
+        if (i === j) { bg = '#1f2937'; fg = COLORS.dim; }
+        else if (v >= 0) {
+          // positive: dark → teal
+          bg = `rgba(${Math.round(16 + (v+1)/2*8)},${Math.round(60 + v*157)},${Math.round(80 + v*100)},${0.25 + v*0.55})`;
+          fg = v > 0.5 ? '#fff' : COLORS.dim;
+        } else {
+          // negative: separate red gradient, deeper red the more negative
+          const a = -v;
+          bg = `rgba(232,88,74,${0.18 + a*0.72})`;
+          fg = a > 0.35 ? '#fff' : '#f3b1a9';
+        }
+        html += `<div title="${rowT}-${colT}: ${v.toFixed(2)}" style="height:${cellSize}px; display:flex; align-items:center; justify-content:center; background:${bg}; border-radius:2px; color:${fg};">${v.toFixed(2)}</div>`;
       });
     });
     html += `</div>`;
+    html += `
+      <div style="display:flex; align-items:center; gap:10px; margin-top:18px; font-family:var(--mono); font-size:10.5px; color:${COLORS.dim};">
+        <span>−1.0</span>
+        <div style="width:220px; max-width:50vw; height:8px; border-radius:4px; background:linear-gradient(90deg, rgba(232,88,74,0.9) 0%, rgba(232,88,74,0.18) 49.5%, rgba(20,60,80,0.25) 50.5%, rgba(24,217,180,0.8) 100%);"></div>
+        <span>+1.0</span>
+        <span style="color:${COLORS.faint}; margin-left:6px;">red = move in opposite directions · teal = move together</span>
+      </div>`;
     document.getElementById('corr-heatmap').innerHTML = html;
 
     const pairs = [];
