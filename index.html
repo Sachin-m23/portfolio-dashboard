@@ -2,10 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Portfolio Optimization — Efficient Frontier</title>
+<title>Portfolio Optimiser</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
   --bg:           #0a0e14;
@@ -23,6 +22,7 @@
   --purple:       #a78bfa;
   --mono: 'JetBrains Mono', 'SF Mono', 'Roboto Mono', Consolas, monospace;
   --sans: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: dark;
 }
 
 *{box-sizing:border-box; margin:0; padding:0;}
@@ -38,6 +38,8 @@ body{
 ::-webkit-scrollbar{width:8px; height:8px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
+
+button:focus-visible, input:focus-visible, select:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
 
 header{
   border-bottom:1px solid var(--line);
@@ -62,6 +64,14 @@ h1{
   font-weight:700;
   letter-spacing:-0.01em;
 }
+.header-holdings{
+  font-family:var(--mono);
+  font-size:12px;
+  color:var(--text-dim);
+  margin-top:6px;
+  max-width:720px;
+  line-height:1.6;
+}
 .header-meta{
   font-family:var(--mono);
   font-size:12px;
@@ -70,6 +80,16 @@ h1{
   line-height:1.6;
 }
 .header-meta span{color:var(--text);}
+
+.notice-bar{
+  font-family:var(--mono);
+  font-size:12px;
+  line-height:1.6;
+  color:var(--gold);
+  background:rgba(232,184,74,0.07);
+  border-bottom:1px solid rgba(232,184,74,0.25);
+  padding:10px 32px;
+}
 
 .tabs{
   display:flex;
@@ -99,16 +119,24 @@ main{padding:32px; max-width:1500px; margin:0 auto;}
 .tab-content{display:none; animation:fadeIn 0.3s ease;}
 .tab-content.active{display:block;}
 @keyframes fadeIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+@media (prefers-reduced-motion: reduce){ .tab-content{animation:none;} .spinner{animation-duration:2.4s;} }
 
 .grid{display:grid; gap:20px;}
 .grid-2{grid-template-columns:1.3fr 1fr;}
 .grid-3{grid-template-columns:repeat(3, 1fr);}
 .grid-4{grid-template-columns:repeat(4, 1fr);}
+.grid > *{min-width:0;}
 @media(max-width:1300px){
   .grid-4{grid-template-columns:repeat(2, 1fr);}
 }
 @media(max-width:1000px){
   .grid-2, .grid-3, .grid-4{grid-template-columns:1fr;}
+  .span-2{grid-column:auto !important;}
+}
+@media(max-width:640px){
+  header, .tabs, .notice-bar{padding-left:16px; padding-right:16px;}
+  main{padding:20px 16px;}
+  .header-meta{text-align:left;}
 }
 
 .panel{
@@ -127,6 +155,8 @@ main{padding:32px; max-width:1500px; margin:0 auto;}
   display:flex;
   justify-content:space-between;
   align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
 }
 .panel-title .badge{
   font-size:10px;
@@ -135,42 +165,6 @@ main{padding:32px; max-width:1500px; margin:0 auto;}
   background:var(--accent-dim);
   color:var(--accent);
   letter-spacing:0.05em;
-}
-
-.stat-card{
-  background:var(--bg-panel);
-  border:1px solid var(--line);
-  border-radius:6px;
-  padding:18px 20px;
-  position:relative;
-  overflow:hidden;
-}
-.stat-card.highlight{
-  border-color:var(--accent-dim);
-  background:linear-gradient(135deg, rgba(74,217,196,0.06) 0%, var(--bg-panel) 60%);
-}
-.stat-label{
-  font-family:var(--mono);
-  font-size:10.5px;
-  letter-spacing:0.1em;
-  text-transform:uppercase;
-  color:var(--text-dim);
-  margin-bottom:8px;
-}
-.stat-value{
-  font-family:var(--mono);
-  font-size:30px;
-  font-weight:700;
-  letter-spacing:-0.02em;
-}
-.stat-value.accent{color:var(--accent);}
-.stat-value.gold{color:var(--gold);}
-.stat-value.red{color:var(--red);}
-.stat-sub{
-  font-family:var(--mono);
-  font-size:11.5px;
-  color:var(--text-faint);
-  margin-top:6px;
 }
 
 .portfolio-picker{
@@ -186,12 +180,11 @@ main{padding:32px; max-width:1500px; margin:0 auto;}
   border:1px solid var(--line);
   border-radius:8px;
   padding:20px;
-  cursor:default;
   position:relative;
 }
 .pp-card.lead{
-  border-color:var(--accent);
-  box-shadow:0 0 0 1px var(--accent), 0 0 24px rgba(74,217,196,0.12);
+  border-color:var(--gold);
+  box-shadow:0 0 0 1px var(--gold), 0 0 24px rgba(232,184,74,0.12);
 }
 .pp-card.lead::before{
   content:'OPTIMAL';
@@ -200,8 +193,8 @@ main{padding:32px; max-width:1500px; margin:0 auto;}
   font-family:var(--mono);
   font-size:9.5px;
   letter-spacing:0.12em;
-  color:var(--accent);
-  background:rgba(74,217,196,0.1);
+  color:var(--gold);
+  background:rgba(232,184,74,0.1);
   padding:3px 8px;
   border-radius:3px;
 }
@@ -221,21 +214,19 @@ main{padding:32px; max-width:1500px; margin:0 auto;}
   padding:3px 8px;
   border-radius:3px;
 }
-.pp-name{font-size:15px; font-weight:600; margin-bottom:4px;}
+.pp-name{font-size:15px; font-weight:600; margin-bottom:4px; padding-right:110px;}
 .pp-sub{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-bottom:14px;}
-.pp-metrics{display:flex; gap:18px;}
+.pp-metrics{display:flex; gap:18px; flex-wrap:wrap;}
 .pp-metric-label{font-family:var(--mono); font-size:9.5px; color:var(--text-faint); letter-spacing:0.08em; text-transform:uppercase;}
 .pp-metric-value{font-family:var(--mono); font-size:18px; font-weight:700; margin-top:2px;}
 
 .chart-box{position:relative; width:100%;}
-.chart-box.h-340{height:340px;}
 .chart-box.h-300{height:300px;}
 .chart-box.h-380{height:380px;}
 .chart-box.h-420{height:420px;}
 .chart-box.h-260{height:260px;}
 .chart-box.h-220{height:220px;}
 
-/* ───────── SECTION DIVIDER ───────── */
 .section-divider{
   display:flex;
   align-items:center;
@@ -257,7 +248,6 @@ main{padding:32px; max-width:1500px; margin:0 auto;}
   background:var(--line);
 }
 
-/* ───────── PORTFOLIO SHEET CARD (3-up row) ───────── */
 .psheet-card{
   background:var(--bg-panel);
   border:1px solid var(--line);
@@ -278,6 +268,7 @@ main{padding:32px; max-width:1500px; margin:0 auto;}
   display:flex;
   justify-content:space-between;
   align-items:flex-start;
+  gap:8px;
   margin-bottom:4px;
 }
 .psheet-name{font-size:14.5px; font-weight:700;}
@@ -286,7 +277,7 @@ main{padding:32px; max-width:1500px; margin:0 auto;}
   padding:2px 7px; border-radius:3px; white-space:nowrap;
 }
 .psheet-sub{font-family:var(--mono); font-size:10.5px; color:var(--text-faint); margin-bottom:12px;}
-.psheet-stats{display:flex; gap:14px; margin-bottom:14px;}
+.psheet-stats{display:flex; gap:14px; margin-bottom:14px; flex-wrap:wrap;}
 .psheet-stat-label{font-family:var(--mono); font-size:9px; color:var(--text-faint); letter-spacing:0.06em; text-transform:uppercase;}
 .psheet-stat-value{font-family:var(--mono); font-size:16px; font-weight:700; margin-top:2px;}
 .psheet-legend{
@@ -296,7 +287,8 @@ main{padding:32px; max-width:1500px; margin:0 auto;}
 .psheet-legend-item{display:flex; align-items:center; gap:5px;}
 .psheet-legend-dot{width:7px; height:7px; border-radius:50%; flex-shrink:0;}
 
-table.weights-table{width:100%; border-collapse:collapse; font-family:var(--mono); font-size:12.5px;}
+.table-scroll{overflow-x:auto;}
+table.weights-table{width:100%; border-collapse:collapse; font-family:var(--mono); font-size:12.5px; font-variant-numeric:tabular-nums;}
 table.weights-table th{
   text-align:left;
   color:var(--text-faint);
@@ -306,11 +298,12 @@ table.weights-table th{
   font-size:10px;
   padding:0 10px 10px 0;
   border-bottom:1px solid var(--line);
+  white-space:nowrap;
 }
-table.weights-table td{padding:7px 10px 7px 0; border-bottom:1px solid rgba(31,41,55,0.5);}
+table.weights-table td{padding:7px 10px 7px 0; border-bottom:1px solid rgba(31,41,55,0.5); white-space:nowrap;}
 table.weights-table tr:last-child td{border-bottom:none;}
-.weight-bar-track{background:var(--bg-panel-2); border-radius:3px; height:6px; width:100%; overflow:hidden;}
-.weight-bar-fill{height:100%; border-radius:3px;}
+table.weights-table td.num, table.weights-table th.num{text-align:right;}
+table.weights-table td.floor{color:var(--text-faint);}
 .ticker-dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:8px;}
 
 .legend-row{display:flex; gap:18px; flex-wrap:wrap; margin-top:14px; font-family:var(--mono); font-size:11.5px; color:var(--text-dim);}
@@ -329,12 +322,27 @@ table.weights-table tr:last-child td{border-bottom:none;}
   cursor:pointer;
   transition:all 0.15s;
 }
-.toggle-btn.active{border-color:var(--accent); color:var(--accent); background:rgba(74,217,196,0.08);}
+.toggle-btn.active{color:var(--accent); background:rgba(74,217,196,0.08);}
+
+.small-btn{
+  font-family:var(--mono);
+  font-size:10.5px;
+  letter-spacing:0.04em;
+  color:var(--text-dim);
+  background:var(--bg-panel-2);
+  border:1px solid var(--line);
+  border-radius:4px;
+  padding:4px 10px;
+  cursor:pointer;
+  text-transform:none;
+}
+.small-btn:hover{border-color:var(--accent); color:var(--accent);}
 
 .insight{
   font-size:13px;
   line-height:1.65;
   color:var(--text-dim);
+  max-width:110ch;
 }
 .insight strong{color:var(--text); font-weight:600;}
 .insight .accent-text{color:var(--accent); font-weight:600;}
@@ -348,128 +356,162 @@ footer{
   letter-spacing:0.04em;
 }
 
-/* ───────── UPLOAD GATE ───────── */
-#upload-view{
+/* ───────── PORTFOLIO INPUT ───────── */
+#input-view{
   min-height:100vh;
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:32px;
+  padding:32px 16px;
 }
-.upload-shell{
-  max-width:640px;
-  width:100%;
-}
-.upload-sub{
+.input-shell{max-width:680px; width:100%;}
+.input-sub{
   text-align:center;
   color:var(--text-dim);
   font-size:13.5px;
   line-height:1.6;
-  margin-bottom:32px;
+  margin:0 auto 28px;
+  max-width:560px;
 }
-.dropzone{
-  border:1.5px dashed var(--line);
-  border-radius:10px;
-  padding:48px 32px;
-  text-align:center;
-  cursor:pointer;
-  transition:border-color 0.2s, background 0.2s;
-  background:var(--bg-panel);
-}
-.dropzone:hover, .dropzone.drag-over{
-  border-color:var(--accent);
-  background:rgba(74,217,196,0.04);
-}
-.dropzone-icon{
-  font-size:28px;
-  color:var(--accent);
-  margin-bottom:12px;
-  font-weight:300;
-}
-.dropzone-text{
-  font-size:15px;
-  margin-bottom:10px;
-}
-.dropzone-link{
-  color:var(--accent);
-  text-decoration:underline;
-}
-.dropzone-hint{
+.field-label{
+  display:block;
   font-family:var(--mono);
-  font-size:11px;
-  color:var(--text-faint);
-  line-height:1.6;
-}
-.upload-options{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:10px;
-  margin-top:22px;
-  font-family:var(--mono);
-  font-size:12px;
+  font-size:10.5px;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
   color:var(--text-dim);
+  margin-bottom:8px;
 }
-.upload-options input{
-  width:64px;
+.ticker-box{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+  min-height:64px;
+  padding:12px;
+  background:var(--bg-panel);
+  border:1.5px solid var(--line);
+  border-radius:10px;
+  cursor:text;
+  transition:border-color 0.15s;
+}
+.ticker-box:focus-within{border-color:var(--accent);}
+.chip{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-family:var(--mono);
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--accent);
+  background:rgba(74,217,196,0.08);
+  border:1px solid var(--accent-dim);
+  border-radius:4px;
+  padding:4px 4px 4px 9px;
+}
+.chip button{
+  background:none;
+  border:none;
+  color:var(--text-dim);
+  font-size:14px;
+  line-height:1;
+  cursor:pointer;
+  padding:0 5px;
+  border-radius:3px;
+}
+.chip button:hover{color:var(--red);}
+#ticker-input{
+  flex:1;
+  min-width:180px;
+  background:transparent;
+  border:none;
+  outline:none;
+  color:var(--text);
+  font-family:var(--mono);
+  font-size:13px;
+  padding:4px 2px;
+  text-transform:uppercase;
+}
+#ticker-input::placeholder{color:var(--text-faint); text-transform:none;}
+.ticker-meta{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:6px 14px;
+  margin-top:10px;
+  font-family:var(--mono);
+  font-size:11.5px;
+  color:var(--text-faint);
+}
+.link-btn{
+  background:none;
+  border:none;
+  color:var(--accent);
+  font-family:var(--mono);
+  font-size:11.5px;
+  cursor:pointer;
+  text-decoration:underline;
+  text-underline-offset:2px;
+  padding:0;
+}
+.link-btn:hover{color:var(--text);}
+.settings-row{
+  display:grid;
+  grid-template-columns:1fr 1fr 1.6fr;
+  gap:14px;
+  margin-top:26px;
+}
+@media(max-width:600px){ .settings-row{grid-template-columns:1fr 1fr;} .settings-row .key-field{grid-column:span 2;} }
+.settings-row input, .settings-row select{
+  width:100%;
   background:var(--bg-panel-2);
   border:1px solid var(--line);
   color:var(--text);
-  border-radius:4px;
-  padding:6px 8px;
+  border-radius:5px;
+  padding:9px 10px;
   font-family:var(--mono);
-  font-size:12px;
-  text-align:right;
+  font-size:12.5px;
 }
-#upload-status{
-  margin-top:24px;
+.rf-wrap{position:relative;}
+.rf-wrap input{padding-right:28px;}
+.rf-wrap span{position:absolute; right:10px; top:50%; transform:translateY(-50%); font-family:var(--mono); font-size:12px; color:var(--text-faint);}
+.run-btn{
+  width:100%;
+  margin-top:26px;
+  padding:14px;
+  font-family:var(--mono);
+  font-size:13px;
+  font-weight:700;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:#06231f;
+  background:var(--accent);
+  border:none;
+  border-radius:7px;
+  cursor:pointer;
+  transition:filter 0.15s, opacity 0.15s;
+}
+.run-btn:hover{filter:brightness(1.08);}
+.run-btn:disabled{opacity:0.35; cursor:not-allowed; filter:none;}
+#input-status{
+  margin-top:18px;
   text-align:center;
   font-family:var(--mono);
   font-size:12.5px;
+  line-height:1.6;
   color:var(--text-dim);
   min-height:20px;
 }
-#upload-status.error{ color:var(--red); }
-#upload-status.processing{ color:var(--accent); }
-.upload-format-example{
-  display:flex;
-  gap:20px;
-  margin-top:36px;
-  justify-content:center;
-}
-.format-col{ flex:1; max-width:260px; }
-.format-label{
-  font-family:var(--mono);
-  font-size:10px;
-  letter-spacing:0.08em;
-  text-transform:uppercase;
-  color:var(--text-faint);
-  margin-bottom:8px;
-  text-align:center;
-}
-table.format-table{
-  width:100%;
-  border-collapse:collapse;
+#input-status.error{ color:var(--red); }
+.input-footnote{
+  margin-top:26px;
   font-family:var(--mono);
   font-size:10.5px;
-  border:1px solid var(--line);
-  border-radius:4px;
-  overflow:hidden;
-}
-table.format-table th{
-  background:var(--bg-panel-2);
-  color:var(--text-dim);
-  padding:6px 8px;
-  text-align:left;
-  font-weight:500;
-}
-table.format-table td{
-  padding:6px 8px;
+  line-height:1.7;
   color:var(--text-faint);
-  border-top:1px solid var(--line);
+  text-align:center;
 }
 
-/* ───────── CHANGE FILE BUTTON ───────── */
 .change-file-btn{
   margin-top:8px;
   font-family:var(--mono);
@@ -482,10 +524,7 @@ table.format-table td{
   cursor:pointer;
   transition:border-color 0.15s, color 0.15s;
 }
-.change-file-btn:hover{
-  border-color:var(--accent);
-  color:var(--accent);
-}
+.change-file-btn:hover{border-color:var(--accent); color:var(--accent);}
 
 /* ───────── PROCESSING OVERLAY ───────── */
 #processing-overlay{
@@ -498,6 +537,7 @@ table.format-table td{
   z-index:1000;
   flex-direction:column;
   gap:18px;
+  padding:16px;
 }
 #processing-overlay.active{ display:flex; }
 .spinner{
@@ -512,69 +552,91 @@ table.format-table td{
   font-family:var(--mono);
   font-size:13px;
   color:var(--text-dim);
+  text-align:center;
 }
+.progress-track{width:260px; max-width:80vw; height:4px; background:var(--line); border-radius:2px; overflow:hidden;}
+.progress-fill{height:100%; width:0; background:var(--accent); transition:width 0.2s;}
 </style>
 </head>
 <body>
 
-<!-- ═══════════ UPLOAD GATE ═══════════ -->
-<div id="upload-view">
-  <div class="upload-shell">
+<!-- ═══════════ PORTFOLIO INPUT ═══════════ -->
+<div id="input-view">
+  <div class="input-shell">
     <div class="brand-eyebrow" style="text-align:center;">Quantitative Portfolio Analysis</div>
-    <h1 style="text-align:center; margin-bottom:8px;">Efficient Frontier Dashboard</h1>
-    <p class="upload-sub">Upload a price history file to generate the efficient frontier, optimal portfolio weights, and performance comparison — entirely in your browser. Nothing is uploaded to a server.</p>
+    <h1 style="text-align:center; margin-bottom:8px;">Portfolio Optimiser</h1>
+    <p class="input-sub">Enter the tickers in your portfolio. Price history is pulled from Financial Modeling Prep and the optimiser finds the best weights, with every holding kept at 1% or more.</p>
 
-    <div class="dropzone" id="dropzone">
-      <input type="file" id="file-input" accept=".xlsx,.xls,.csv" hidden>
-      <div class="dropzone-icon">↑</div>
-      <div class="dropzone-text">Drop your .xlsx or .csv file here, or <span class="dropzone-link">browse</span></div>
-      <div class="dropzone-hint">Daily prices, either format: <strong>Ticker, Date, Close</strong> (long) or <strong>Date</strong> + one column per ticker (wide)</div>
+    <label class="field-label" for="ticker-input">Holdings</label>
+    <div class="ticker-box" id="ticker-box">
+      <input id="ticker-input" type="text" autocomplete="off" spellcheck="false"
+             placeholder="Type a ticker and press Enter, or paste a list (AAPL, MSFT, NVDA)">
+    </div>
+    <div class="ticker-meta">
+      <span id="ticker-count">0 holdings</span>
+      <button class="link-btn" id="example-btn" type="button">Use example portfolio</button>
+      <button class="link-btn" id="clear-btn" type="button">Clear all</button>
     </div>
 
-    <div class="upload-options">
-      <label for="rf-input">Annual risk-free rate</label>
-      <input type="number" id="rf-input" value="1.2" step="0.1" min="0" max="20"> %
+    <div class="settings-row">
+      <div>
+        <label class="field-label" for="lookback-select">History</label>
+        <select id="lookback-select">
+          <option value="1">1 year</option>
+          <option value="2">2 years</option>
+          <option value="3" selected>3 years</option>
+          <option value="5">5 years</option>
+        </select>
+      </div>
+      <div>
+        <label class="field-label" for="rf-input">Risk-free rate</label>
+        <div class="rf-wrap"><input type="number" id="rf-input" value="1.2" step="0.1" min="0" max="20"><span>%</span></div>
+      </div>
+      <div class="key-field">
+        <label class="field-label" for="key-input">FMP API key</label>
+        <input type="text" id="key-input" autocomplete="off" spellcheck="false" value="3URryNYomrF4STDsjWcuROvHcpZp4vEE">
+      </div>
     </div>
 
-    <div id="upload-status"></div>
+    <button class="run-btn" id="run-btn" type="button" disabled>Optimise portfolio</button>
+    <div id="input-status"></div>
 
-    <div class="upload-format-example">
-      <div class="format-col">
-        <div class="format-label">Long format</div>
-        <table class="format-table"><tr><th>Ticker</th><th>Date</th><th>Close</th></tr><tr><td>AAPL</td><td>2024-01-02</td><td>185.64</td></tr><tr><td>MSFT</td><td>2024-01-02</td><td>376.04</td></tr></table>
-      </div>
-      <div class="format-col">
-        <div class="format-label">Wide format</div>
-        <table class="format-table"><tr><th>Date</th><th>AAPL</th><th>MSFT</th></tr><tr><td>2024-01-02</td><td>185.64</td><td>376.04</td></tr></table>
-      </div>
+    <div class="input-footnote">
+      2 to 50 holdings. Use FMP symbols (e.g. BRK-B, VOD.L).<br>
+      Only dates where every holding traded are used, so a recent listing shortens the sample.<br>
+      Calculations run in your browser; the only outside request is to FMP for prices.
     </div>
   </div>
 </div>
 
 <!-- ═══════════ PROCESSING OVERLAY ═══════════ -->
-<div id="processing-overlay">
+<div id="processing-overlay" role="status" aria-live="polite">
   <div class="spinner"></div>
-  <div id="processing-status">Parsing file...</div>
+  <div id="processing-status">Fetching prices...</div>
+  <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
 </div>
 
-<!-- ═══════════ DASHBOARD (hidden until a file is loaded) ═══════════ -->
+<!-- ═══════════ DASHBOARD ═══════════ -->
 <div id="app-view" style="display:none;">
 
 <header>
   <div>
     <div class="brand-eyebrow">Quantitative Portfolio Analysis</div>
-    <h1 id="header-title">Efficient Frontier</h1>
+    <h1>Portfolio Optimiser</h1>
+    <div class="header-holdings" id="header-holdings"></div>
   </div>
   <div class="header-meta">
     <div>Sample period <span id="header-dates">—</span></div>
     <div>Trading days <span id="header-ndays">—</span></div>
-    <div>Risk-free rate <span id="header-rf">—</span> annualized</div>
-    <button class="change-file-btn" id="change-file-btn">↻ Load different file</button>
+    <div>Risk-free rate <span id="header-rf">—</span> annualised</div>
+    <div>Prices <span id="header-source">—</span></div>
+    <button class="change-file-btn" id="edit-btn" type="button">← Edit portfolio</button>
   </div>
 </header>
+<div class="notice-bar" id="notice-bar" hidden></div>
 
 <nav class="tabs">
-  <button class="tab-btn active" data-tab="sheet">Frontier &amp; Portfolios</button>
+  <button class="tab-btn active" data-tab="sheet">Risk / Return &amp; Weights</button>
   <button class="tab-btn" data-tab="compare">Comparison</button>
   <button class="tab-btn" data-tab="correlation">Correlation</button>
 </nav>
@@ -583,16 +645,14 @@ table.format-table td{
 
   <section class="tab-content active" id="tab-sheet">
 
-    <!-- ROW 1: Top-line stat cards for all 3 portfolios -->
     <div class="portfolio-picker" id="overview-cards"></div>
 
-    <!-- ROW 2: Full-width efficient frontier chart -->
     <div class="panel" style="margin-bottom:20px;">
-      <div class="panel-title">Efficient Frontier <span class="badge" id="frontier-count-badge">Optimized</span></div>
-      <div class="chart-box h-380"><canvas id="chart-frontier-main"></canvas></div>
+      <div class="panel-title">Risk vs Return of Portfolios <span class="badge" id="cloud-count-badge">—</span></div>
+      <div class="chart-box h-380"><canvas id="chart-riskreturn-main"></canvas></div>
       <div class="legend-row">
-        <div class="legend-item"><span class="legend-swatch" style="background:#2a3441;"></span>Random portfolios (4,000)</div>
-        <div class="legend-item"><span class="legend-swatch" style="background:#4ad9c4;"></span>Efficient frontier</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#2a3441;"></span><span id="legend-cloud">Random portfolios</span></div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#4ad9c4;"></span>Best achievable risk/return</div>
         <div class="legend-item"><span class="legend-swatch" style="background:#e8b84a;"></span>Max Sharpe</div>
         <div class="legend-item"><span class="legend-swatch" style="background:#a78bfa;"></span>Highest return</div>
         <div class="legend-item"><span class="legend-swatch" style="background:#5a8fe8;"></span>Min variance</div>
@@ -601,32 +661,35 @@ table.format-table td{
     </div>
 
     <div class="panel" style="margin-bottom:24px;">
-      <div class="panel-title">Reading the Frontier</div>
+      <div class="panel-title">Reading the Chart</div>
       <div class="insight" id="overview-insight"></div>
     </div>
 
-    <!-- ROW 3: Three portfolios side by side, each with pie chart + stats -->
-    <div class="section-divider">
-      <span>Highlighted Portfolios on the Frontier</span>
-    </div>
-
+    <div class="section-divider"><span>Optimised Portfolios</span></div>
     <div class="grid grid-4" id="portfolio-sheet-row"></div>
 
-    <!-- ROW 4: Per-holding risk/return + stats table -->
-    <div class="section-divider">
-      <span>Individual Holdings</span>
+    <div class="section-divider"><span>Portfolio Weights</span></div>
+    <div class="panel">
+      <div class="panel-title">Allocation by Holding <span><button class="small-btn" id="copy-weights-btn" type="button">Copy as CSV</button></span></div>
+      <div class="table-scroll">
+        <table class="weights-table" id="weights-table">
+          <thead><tr><th>Ticker</th><th class="num">Max Sharpe</th><th class="num">Highest Return</th><th class="num">Min Variance</th><th class="num">Equal Weight</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
 
+    <div class="section-divider"><span>Individual Holdings</span></div>
     <div class="grid grid-3">
       <div class="panel">
         <div class="panel-title">Per-Holding Risk / Return</div>
         <div class="chart-box h-260"><canvas id="chart-stock-scatter"></canvas></div>
       </div>
-      <div class="panel" style="grid-column:span 2;">
-        <div class="panel-title">Individual Holding Statistics <span class="badge">Annualized</span></div>
-        <div style="max-height:260px; overflow-y:auto;">
+      <div class="panel span-2" style="grid-column:span 2;">
+        <div class="panel-title">Individual Holding Statistics <span class="badge">Annualised</span></div>
+        <div style="max-height:260px; overflow:auto;">
           <table class="weights-table" id="stock-stats-table">
-            <thead><tr><th>Ticker</th><th>Return</th><th>Std Dev</th><th>Sharpe</th></tr></thead>
+            <thead><tr><th>Ticker</th><th class="num">Return</th><th class="num">Std Dev</th><th class="num">Sharpe</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -655,14 +718,16 @@ table.format-table td{
 
     <div class="panel" style="margin-top:20px;">
       <div class="panel-title">Performance Summary</div>
-      <table class="weights-table" id="compare-table">
-        <thead><tr><th>Portfolio</th><th>Total Return</th><th>Ann. Return</th><th>Ann. Std Dev</th><th>Sharpe</th><th>Max Drawdown</th><th>Skew</th><th>Kurtosis</th></tr></thead>
-        <tbody></tbody>
-      </table>
+      <div class="table-scroll">
+        <table class="weights-table" id="compare-table">
+          <thead><tr><th>Portfolio</th><th class="num">Total Return</th><th class="num">Ann. Return</th><th class="num">Ann. Std Dev</th><th class="num">Sharpe</th><th class="num">Max Drawdown</th><th class="num">Skew</th><th class="num">Kurtosis</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="panel" style="margin-top:20px;">
-      <div class="panel-title">Equal Weight vs. Optimized — What Changed</div>
+      <div class="panel-title">Equal Weight vs. Optimised — What Changed</div>
       <div class="insight" id="compare-insight"></div>
     </div>
   </section>
@@ -682,17 +747,20 @@ table.format-table td{
 
 </main>
 
-<footer>Quantitative analysis generated from daily price data &middot; Monte Carlo simulation (4,000 portfolios) + Browser-based mean-variance optimization &middot; Not investment advice</footer>
+<footer>Prices from Financial Modeling Prep &middot; Mean-variance optimisation with a 1% minimum per holding &middot; Monte Carlo simulation (4,000 portfolios) &middot; Not investment advice</footer>
 
 </div> <!-- /app-view -->
 
-<script>
+<script id="engine">
 // ═══════════════════════════════════════════════════════════════════════
-// PORTFOLIO MATH ENGINE — pure JS port of the Python analysis pipeline
-// Linear algebra is hand-rolled (no numpy), kept simple since n <= ~50 holdings
+// PORTFOLIO MATH ENGINE
+// Same methodology as the file-upload version, with one change: every
+// portfolio (optimised, frontier and Monte Carlo) keeps each holding >= 1%.
 // ═══════════════════════════════════════════════════════════════════════
 
 const TRADING_DAYS = 252;
+const MIN_WEIGHT = 0.01;   // every holding keeps at least 1%
+const MAX_HOLDINGS = 50;
 
 // ───────── LINEAR ALGEBRA HELPERS ─────────
 
@@ -718,98 +786,16 @@ function quadForm(w, M) {
   return dot(w, matVec(M, w));
 }
 
-// ───────── DATA PIPELINE ─────────
+const sumArr = a => a.reduce((x, y) => x + y, 0);
 
-function parseToWidePrices(rows) {
-  if (!rows.length) throw new Error("File contains no data rows.");
-
-  const keys = Object.keys(rows[0]).map(k => k.trim());
-  const lowerKeys = keys.map(k => k.toLowerCase());
-
-  const hasTicker = lowerKeys.includes('ticker') || lowerKeys.includes('symbol');
-  const dateKey = keys[lowerKeys.indexOf('date')] ?? keys.find(k => k.toLowerCase().includes('date'));
-
-  if (!dateKey) throw new Error("Couldn't find a 'Date' column in the file.");
-
-  if (hasTicker) {
-    const tickerKey = keys[lowerKeys.indexOf('ticker')] !== undefined && lowerKeys.indexOf('ticker') >= 0
-      ? keys[lowerKeys.indexOf('ticker')] : keys[lowerKeys.indexOf('symbol')];
-    const closeKey = keys.find(k => ['close','adj close','adjclose','price'].includes(k.toLowerCase()))
-                   ?? keys.find(k => k.toLowerCase().includes('close'))
-                   ?? keys.find(k => k.toLowerCase().includes('price'));
-    if (!closeKey) throw new Error("Couldn't find a Close/Price column in the file.");
-
-    const byDate = new Map();
-    const tickerSet = new Set();
-
-    for (const row of rows) {
-      const ticker = String(row[tickerKey]).trim();
-      if (!ticker || ticker === 'undefined') continue;
-      const dateVal = row[dateKey];
-      const dateStr = normalizeDate(dateVal);
-      const price = parseFloat(row[closeKey]);
-      if (!dateStr || isNaN(price)) continue;
-      tickerSet.add(ticker);
-      if (!byDate.has(dateStr)) byDate.set(dateStr, {});
-      byDate.get(dateStr)[ticker] = price;
-    }
-
-    const tickers = Array.from(tickerSet).sort();
-    const dates = Array.from(byDate.keys()).sort();
-
-    const prices = [];
-    const cleanDates = [];
-    for (const d of dates) {
-      const rowObj = byDate.get(d);
-      if (tickers.every(t => rowObj[t] !== undefined)) {
-        prices.push(tickers.map(t => rowObj[t]));
-        cleanDates.push(d);
-      }
-    }
-    return { tickers, dates: cleanDates, prices };
-
-  } else {
-    const tickers = keys.filter(k => k !== dateKey);
-    const dates = [];
-    const prices = [];
-    for (const row of rows) {
-      const dateStr = normalizeDate(row[dateKey]);
-      if (!dateStr) continue;
-      const vals = tickers.map(t => parseFloat(row[t]));
-      if (vals.some(v => isNaN(v))) continue;
-      dates.push(dateStr);
-      prices.push(vals);
-    }
-    const order = dates.map((d,i)=>i).sort((a,b)=> dates[a] < dates[b] ? -1 : 1);
-    return {
-      tickers,
-      dates: order.map(i=>dates[i]),
-      prices: order.map(i=>prices[i]),
-    };
-  }
-}
-
-function normalizeDate(val) {
-  if (val == null || val === '') return null;
-  if (val instanceof Date) return val.toISOString().slice(0,10);
-  if (typeof val === 'number') {
-    const epoch = new Date(Date.UTC(1899, 11, 30));
-    const d = new Date(epoch.getTime() + val * 86400000);
-    return d.toISOString().slice(0,10);
-  }
-  const d = new Date(val);
-  if (isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0,10);
-}
+// ───────── RETURNS / MOMENTS ─────────
 
 function computeDailyReturns(prices) {
   const T = prices.length, N = prices[0].length;
   const returns = [];
   for (let t = 1; t < T; t++) {
     const row = new Array(N);
-    for (let j = 0; j < N; j++) {
-      row[j] = prices[t][j] / prices[t-1][j] - 1;
-    }
+    for (let j = 0; j < N; j++) row[j] = prices[t][j] / prices[t-1][j] - 1;
     returns.push(row);
   }
   return returns;
@@ -828,32 +814,18 @@ function covMatrix(returns, mean) {
   const cov = Array.from({length:N}, () => new Array(N).fill(0));
   for (let t = 0; t < T; t++) {
     const dev = returns[t].map((v,j) => v - mean[j]);
-    for (let i = 0; i < N; i++) {
-      for (let j = i; j < N; j++) {
-        cov[i][j] += dev[i] * dev[j];
-      }
-    }
+    for (let i = 0; i < N; i++) for (let j = i; j < N; j++) cov[i][j] += dev[i] * dev[j];
   }
   const denom = T - 1;
-  for (let i = 0; i < N; i++) {
-    for (let j = i; j < N; j++) {
-      cov[i][j] /= denom;
-      cov[j][i] = cov[i][j];
-    }
-  }
+  for (let i = 0; i < N; i++) for (let j = i; j < N; j++) { cov[i][j] /= denom; cov[j][i] = cov[i][j]; }
   return cov;
 }
 
 function corrMatrix(cov) {
   const N = cov.length;
   const std = cov.map((row,i) => Math.sqrt(row[i]));
-  const corr = Array.from({length:N}, () => new Array(N).fill(0));
-  for (let i = 0; i < N; i++) {
-    for (let j = 0; j < N; j++) {
-      corr[i][j] = cov[i][j] / (std[i] * std[j]);
-    }
-  }
-  return corr;
+  return Array.from({length:N}, (_, i) => Array.from({length:N}, (_, j) =>
+    (std[i] > 0 && std[j] > 0) ? cov[i][j] / (std[i] * std[j]) : 0));
 }
 
 // ───────── PORTFOLIO STATS ─────────
@@ -862,11 +834,11 @@ function portStats(w, meanAnnual, covAnnual, riskFree) {
   const r = dot(w, meanAnnual);
   const variance = quadForm(w, covAnnual);
   const s = Math.sqrt(Math.max(variance, 0));
-  const sh = (r - riskFree) / s;
+  const sh = s > 0 ? (r - riskFree) / s : 0;
   return { return: r, std: s, sharpe: sh };
 }
 
-// ───────── OPTIMIZATION: PROJECTION ONTO SIMPLEX ─────────
+// ───────── PROJECTIONS ─────────
 
 function projectToSimplex(v) {
   const n = v.length;
@@ -874,7 +846,7 @@ function projectToSimplex(v) {
   const cssv = [];
   let sum = 0;
   for (let i = 0; i < n; i++) { sum += u[i]; cssv.push(sum); }
-  let rho = -1;
+  let rho = 0;
   for (let i = n - 1; i >= 0; i--) {
     if (u[i] + (1 - cssv[i]) / (i + 1) > 0) { rho = i; break; }
   }
@@ -883,41 +855,36 @@ function projectToSimplex(v) {
 }
 
 /**
- * Projects onto {w : w_i >= minW for all i, sum(w) = 1}.
- * Equivalent to projecting (w - minW) onto the standard simplex scaled by
- * (1 - n*minW), then adding minW back. Requires n*minW < 1.
+ * Projects onto {w : w_i >= minW, sum(w) = 1}: shift down by the floor,
+ * project onto a simplex scaled to the remaining budget, shift back up.
  */
 function projectToSimplexWithFloor(v, minW) {
   const n = v.length;
-  const budget = 1 - n * minW; // remaining mass to distribute above the floor
-  const shifted = v.map(x => x - minW);
-  const projected = projectToSimplex(shifted.map(x => x / budget)).map(x => x * budget);
-  return projected.map(x => x + minW);
+  const budget = 1 - n * minW;
+  if (budget <= 1e-12) return new Array(n).fill(1 / n);
+  const shifted = v.map(x => (x - minW) / budget);
+  return projectToSimplex(shifted).map(x => x * budget + minW);
 }
 
-function optimizePortfolio(meanAnnual, covAnnual, riskFree, objective, iters = 4000) {
-  const n = meanAnnual.length;
-  let w = new Array(n).fill(1/n);
+// ───────── OPTIMISERS ─────────
 
-  let lr = 0.05;
-  let velocity = new Array(n).fill(0);
-  const momentum = 0.85;
+function optimizePortfolio(meanAnnual, covAnnual, riskFree, objective, minW, iters = 4000) {
+  const n = meanAnnual.length;
+  let w = projectToSimplexWithFloor(new Array(n).fill(1/n), minW);
+  const lr = 0.05, momentum = 0.85;
+  const velocity = new Array(n).fill(0);
 
   function gradVariance(w) {
-    const cw = matVec(covAnnual, w);
-    return cw.map(x => 2 * x);
+    return matVec(covAnnual, w).map(x => 2 * x);
   }
-
   function gradNegSharpe(w) {
     const r = dot(w, meanAnnual);
     const variance = quadForm(w, covAnnual);
     const s = Math.sqrt(Math.max(variance, 1e-12));
     const cw = matVec(covAnnual, w);
     const grad = new Array(n);
-    for (let i = 0; i < n; i++) {
-      grad[i] = meanAnnual[i] / s - (r - riskFree) * cw[i] / (s*s*s);
-    }
-    return grad.map(g => -g);
+    for (let i = 0; i < n; i++) grad[i] = -(meanAnnual[i] / s - (r - riskFree) * cw[i] / (s*s*s));
+    return grad;
   }
 
   for (let it = 0; it < iters; it++) {
@@ -928,46 +895,31 @@ function optimizePortfolio(meanAnnual, covAnnual, riskFree, objective, iters = 4
       velocity[i] = momentum * velocity[i] - stepLr * grad[i] / gnorm;
       w[i] = w[i] + velocity[i];
     }
-    w = projectToSimplex(w);
+    w = projectToSimplexWithFloor(w, minW);
   }
   return w;
 }
 
-// ───────── ROUNDING TO 1% INCREMENTS ─────────
-
 /**
- * Optimizes weights to maximize REALIZED cumulative return over the actual
- * historical daily-return path (not expected/annualized return), subject to
- * every holding keeping at least minW weight. This is a different objective
- * from Sharpe/variance: it directly maximizes prod_t(1 + w.r_t) - 1, using
- * the exact historical sequence of returns (so path/compounding effects and
- * any single big day matter, unlike the mean-variance framework which only
- * sees the average and covariance).
+ * Maximises REALISED cumulative return over the actual daily-return path
+ * (via log growth, same maximiser, more stable), with every holding >= minW.
  */
 function optimizeMaxCumulativeReturn(returns, minW, iters = 3000) {
   const T = returns.length, n = returns[0].length;
-  let w = new Array(n).fill(1/n);
-  w = projectToSimplexWithFloor(w, minW);
+  let w = projectToSimplexWithFloor(new Array(n).fill(1/n), minW);
+  const lr = 0.08, momentum = 0.85;
+  const velocity = new Array(n).fill(0);
 
-  let lr = 0.08;
-  let velocity = new Array(n).fill(0);
-  const momentum = 0.85;
-
-  // Gradient of log(cumulative growth) w.r.t. w, which shares the same
-  // maximizer as cumulative return itself (log is monotonic) and is far
-  // more numerically stable to differentiate over many compounding days:
-  //   log(growth) = sum_t log(1 + w.r_t)
-  //   d/dw_i = sum_t r_it / (1 + w.r_t)
   function gradNegLogGrowth(w) {
     const grad = new Array(n).fill(0);
     for (let t = 0; t < T; t++) {
       const row = returns[t];
       let denom = 1;
       for (let i = 0; i < n; i++) denom += w[i] * row[i];
-      if (denom <= 1e-6) denom = 1e-6; // guard against a ruinous (>100% loss) step
+      if (denom <= 1e-6) denom = 1e-6;
       for (let i = 0; i < n; i++) grad[i] += row[i] / denom;
     }
-    return grad.map(g => -g); // negate: we minimize the negative to maximize growth
+    return grad.map(g => -g);
   }
 
   for (let it = 0; it < iters; it++) {
@@ -983,193 +935,26 @@ function optimizeMaxCumulativeReturn(returns, minW, iters = 3000) {
   return w;
 }
 
-function roundToPct(w, meanAnnual, covAnnual, riskFree, objective) {
-  const n = w.length;
-  let pct = w.map(x => Math.floor(x * 100));
-  let total = pct.reduce((a,b)=>a+b, 0);
-  let remainder = 100 - total;
-
-  function score(pctArr) {
-    const wArr = pctArr.map(x => x/100);
-    if (objective === 'sharpe') {
-      return portStats(wArr, meanAnnual, covAnnual, riskFree).sharpe;
-    } else {
-      return -quadForm(wArr, covAnnual);
-    }
-  }
-
-  if (remainder > 0) {
-    for (let k = 0; k < remainder; k++) {
-      let bestI = -1, bestScore = -Infinity;
-      for (let i = 0; i < n; i++) {
-        const trial = pct.slice(); trial[i] += 1;
-        const s = score(trial);
-        if (s > bestScore) { bestScore = s; bestI = i; }
-      }
-      pct[bestI] += 1;
-    }
-  } else if (remainder < 0) {
-    for (let k = 0; k < -remainder; k++) {
-      let bestI = -1, bestScore = -Infinity;
-      for (let i = 0; i < n; i++) {
-        if (pct[i] <= 0) continue;
-        const trial = pct.slice(); trial[i] -= 1;
-        const s = score(trial);
-        if (s > bestScore) { bestScore = s; bestI = i; }
-      }
-      pct[bestI] -= 1;
-    }
-  }
-  return pct.map(x => x/100);
-}
-
-function roundToPctNeutral(w) {
-  const n = w.length;
-  const scaled = w.map(x => x * 100);
-  const floored = scaled.map(Math.floor);
-  const remainders = scaled.map((x,i) => x - floored[i]);
-  const total = floored.reduce((a,b)=>a+b, 0);
-  const deficit = 100 - total;
-  const order = remainders.map((r,i)=>[r,i]).sort((a,b)=>b[0]-a[0]).map(p=>p[1]);
-  const pct = floored.slice();
-  for (let i = 0; i < deficit; i++) pct[order[i]] += 1;
-  return pct.map(x => x/100);
-}
-
-/**
- * Computes realized cumulative return (total, not annualized) for weights w
- * applied to the given daily-return matrix, assuming fixed weights held
- * constant (rebalanced) over the whole period.
- */
-function cumulativeReturnOf(returns, w) {
-  let growth = 1;
-  for (let t = 0; t < returns.length; t++) {
-    growth *= (1 + dot(returns[t], w));
-  }
-  return growth - 1;
-}
-
-/**
- * Rounds weights to 1% increments while guaranteeing every holding keeps at
- * least 1%, and greedily reassigns the leftover/removed points to whichever
- * holding most improves realized cumulative return. Unlike roundToPct (used
- * for Sharpe/variance), this enforces a hard floor: no holding can ever be
- * floored to 0%, since the whole point of this portfolio is "every position
- * gets a meaningful stake".
- */
-function roundToPctMaxReturn(w, returns) {
-  const n = w.length;
-  // start every holding at its floor (1%), then floor the *excess* above that
-  let pct = w.map(x => Math.max(1, Math.floor(x * 100)));
-  let total = pct.reduce((a,b)=>a+b, 0);
-  let remainder = 100 - total;
-
-  function score(pctArr) {
-    return cumulativeReturnOf(returns, pctArr.map(x => x/100));
-  }
-
-  if (remainder > 0) {
-    for (let k = 0; k < remainder; k++) {
-      let bestI = -1, bestScore = -Infinity;
-      for (let i = 0; i < n; i++) {
-        const trial = pct.slice(); trial[i] += 1;
-        const s = score(trial);
-        if (s > bestScore) { bestScore = s; bestI = i; }
-      }
-      pct[bestI] += 1;
-    }
-  } else if (remainder < 0) {
-    // Only take points from holdings currently above the 1% floor, so no
-    // one ever drops below the guaranteed minimum.
-    for (let k = 0; k < -remainder; k++) {
-      let bestI = -1, bestScore = -Infinity;
-      for (let i = 0; i < n; i++) {
-        if (pct[i] <= 1) continue;
-        const trial = pct.slice(); trial[i] -= 1;
-        const s = score(trial);
-        if (s > bestScore) { bestScore = s; bestI = i; }
-      }
-      pct[bestI] -= 1;
-    }
-  }
-  return pct.map(x => x/100);
-}
-
-// ───────── MONTE CARLO ─────────
-
-function dirichletSample(n, rng) {
-  const x = new Array(n);
-  let sum = 0;
-  for (let i = 0; i < n; i++) {
-    const u = Math.max(rng(), 1e-12);
-    x[i] = -Math.log(u);
-    sum += x[i];
-  }
-  return x.map(v => v / sum);
-}
-
-function roundRowToPct(w) {
-  const n = w.length;
-  const scaled = w.map(x => x * 100);
-  const floored = scaled.map(Math.floor);
-  const remainders = scaled.map((x,i) => x - floored[i]);
-  const total = floored.reduce((a,b)=>a+b, 0);
-  const deficit = 100 - total;
-  const order = remainders.map((r,i)=>[r,i]).sort((a,b)=>b[0]-a[0]).map(p=>p[1]);
-  const pct = floored.slice();
-  for (let i = 0; i < deficit; i++) pct[order[i]] += 1;
-  return pct.map(x => x/100);
-}
-
-function mulberry32(seed) {
-  return function() {
-    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
-    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    t = (t + Math.imul(t ^ t >>> 7, 61 | t)) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-
-function monteCarloCloud(meanAnnual, covAnnual, riskFree, n, count = 4000) {
-  const rng = mulberry32(42);
-  const stds = [], rets = [], sharpes = [];
-  for (let k = 0; k < count; k++) {
-    const wRaw = dirichletSample(n, rng);
-    const w = roundRowToPct(wRaw);
-    const s = portStats(w, meanAnnual, covAnnual, riskFree);
-    stds.push(s.std); rets.push(s.return); sharpes.push(s.sharpe);
-  }
-  return { std: stds, return: rets, sharpe: sharpes };
-}
-
-// ───────── EFFICIENT FRONTIER ─────────
-
-function optimizeForTargetReturn(meanAnnual, covAnnual, targetReturn, iters = 1500) {
+function optimizeForTargetReturn(meanAnnual, covAnnual, targetReturn, minW, iters = 1500) {
   const n = meanAnnual.length;
-  let w = new Array(n).fill(1/n);
-  let lr = 0.05;
-  let velocity = new Array(n).fill(0);
-  const momentum = 0.8;
+  const lr = 0.05, momentum = 0.8;
+  const velocity = new Array(n).fill(0);
+  const mnorm = dot(meanAnnual, meanAnnual) || 1;
 
   function projectReturnAndSimplex(w) {
-    let x = projectToSimplex(w);
+    let x = projectToSimplexWithFloor(w, minW);
     for (let i = 0; i < 25; i++) {
-      const r = dot(x, meanAnnual);
-      const diff = targetReturn - r;
+      const diff = targetReturn - dot(x, meanAnnual);
       if (Math.abs(diff) < 1e-6) break;
-      const mnorm = dot(meanAnnual, meanAnnual) || 1;
-      const step = meanAnnual.map(m => m * diff / mnorm);
-      x = x.map((xi, idx) => xi + step[idx]);
-      x = projectToSimplex(x);
+      x = x.map((xi, idx) => xi + meanAnnual[idx] * diff / mnorm);
+      x = projectToSimplexWithFloor(x, minW);
     }
     return x;
   }
 
-  w = projectReturnAndSimplex(w);
-
+  let w = projectReturnAndSimplex(new Array(n).fill(1/n));
   for (let it = 0; it < iters; it++) {
-    const cw = matVec(covAnnual, w);
-    const grad = cw.map(x => 2*x);
+    const grad = matVec(covAnnual, w).map(x => 2*x);
     const gnorm = Math.sqrt(dot(grad,grad)) || 1;
     const stepLr = lr / Math.sqrt(1 + it*0.01);
     for (let i = 0; i < n; i++) {
@@ -1181,18 +966,106 @@ function optimizeForTargetReturn(meanAnnual, covAnnual, targetReturn, iters = 15
   return w;
 }
 
-function buildEfficientFrontier(meanAnnual, covAnnual, riskFree, minVarReturn, maxReturn, points = 30) {
-  const frontier = [];
+// ───────── ROUNDING TO WHOLE PERCENT, 1% FLOOR ─────────
+
+/**
+ * Rounds to 1% increments, never letting a holding fall below 1%, and
+ * greedily hands out (or takes back) leftover points to whichever holding
+ * most improves scoreFn. Used for the three optimised portfolios.
+ */
+function roundWithFloor(w, scoreFn) {
+  const n = w.length;
+  const pct = w.map(x => Math.max(1, Math.floor(x * 100 + 1e-9)));
+  const remainder = 100 - sumArr(pct);
+  const score = arr => scoreFn(arr.map(x => x / 100));
+
+  for (let k = 0; k < Math.abs(remainder); k++) {
+    const step = remainder > 0 ? 1 : -1;
+    let bestI = -1, bestScore = -Infinity;
+    for (let i = 0; i < n; i++) {
+      if (step < 0 && pct[i] <= 1) continue;
+      const trial = pct.slice(); trial[i] += step;
+      const s = score(trial);
+      if (s > bestScore) { bestScore = s; bestI = i; }
+    }
+    if (bestI < 0) break;
+    pct[bestI] += step;
+  }
+  return pct.map(x => x / 100);
+}
+
+/** Largest-remainder rounding with a 1% floor (for frontier, Monte Carlo, equal weight). */
+function roundNeutralFloor(w) {
+  const n = w.length;
+  const scaled = w.map(x => x * 100);
+  const pct = scaled.map(x => Math.max(1, Math.floor(x + 1e-9)));
+  let remainder = 100 - sumArr(pct);
+  if (remainder > 0) {
+    const order = scaled.map((x,i) => [x - Math.floor(x), i]).sort((a,b) => b[0] - a[0]).map(p => p[1]);
+    for (let k = 0; k < remainder; k++) pct[order[k % n]] += 1;
+  } else if (remainder < 0) {
+    while (remainder < 0) {
+      let bestI = -1;
+      for (let i = 0; i < n; i++) if (pct[i] > 1 && (bestI < 0 || pct[i] > pct[bestI])) bestI = i;
+      if (bestI < 0) break;
+      pct[bestI] -= 1; remainder += 1;
+    }
+  }
+  return pct.map(x => x / 100);
+}
+
+function cumulativeReturnOf(returns, w) {
+  let growth = 1;
+  for (let t = 0; t < returns.length; t++) growth *= (1 + dot(returns[t], w));
+  return growth - 1;
+}
+
+// ───────── MONTE CARLO ─────────
+
+function dirichletSample(n, rng) {
+  const x = new Array(n);
+  let sum = 0;
+  for (let i = 0; i < n; i++) { x[i] = -Math.log(Math.max(rng(), 1e-12)); sum += x[i]; }
+  return x.map(v => v / sum);
+}
+
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = (t + Math.imul(t ^ t >>> 7, 61 | t)) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function monteCarloCloud(meanAnnual, covAnnual, riskFree, n, minW, count = 4000) {
+  const rng = mulberry32(42);
+  const budget = 1 - n * minW;
+  const stds = [], rets = [], sharpes = [];
+  for (let k = 0; k < count; k++) {
+    const raw = dirichletSample(n, rng);
+    const w = roundNeutralFloor(raw.map(x => minW + budget * x));
+    const s = portStats(w, meanAnnual, covAnnual, riskFree);
+    stds.push(s.std); rets.push(s.return); sharpes.push(s.sharpe);
+  }
+  return { std: stds, return: rets, sharpe: sharpes };
+}
+
+// ───────── BEST-ACHIEVABLE CURVE (frontier under the 1% floor) ─────────
+
+function buildRiskReturnCurve(meanAnnual, covAnnual, riskFree, minW, minVarReturn, points = 30) {
+  const n = meanAnnual.length;
+  const budget = 1 - n * minW;
+  const maxFeasible = minW * sumArr(meanAnnual) + budget * Math.max(...meanAnnual);
+  const top = minVarReturn + 0.98 * (maxFeasible - minVarReturn);
+  const curve = [];
   for (let k = 0; k < points; k++) {
-    const t = k / (points - 1);
-    const targetReturn = minVarReturn + t * (maxReturn * 0.98 - minVarReturn);
-    let w = optimizeForTargetReturn(meanAnnual, covAnnual, targetReturn, 1500);
-    w = roundRowToPct(w);
-    const stats = portStats(w, meanAnnual, covAnnual, riskFree);
-    frontier.push(stats);
+    const target = minVarReturn + (k / (points - 1)) * (top - minVarReturn);
+    const w = roundNeutralFloor(optimizeForTargetReturn(meanAnnual, covAnnual, target, minW, 1500));
+    curve.push(portStats(w, meanAnnual, covAnnual, riskFree));
   }
   const seen = new Set();
-  return frontier
+  return curve
     .filter(p => { const k = p.std.toFixed(4); if (seen.has(k)) return false; seen.add(k); return true; })
     .sort((a,b) => a.std - b.std);
 }
@@ -1208,13 +1081,11 @@ function riskContribution(w, covAnnual) {
 // ───────── TIME SERIES ─────────
 
 function skewFn(arr, mean, std) {
-  const n = arr.length;
-  const m3 = arr.reduce((a,b)=>a+Math.pow(b-mean,3),0)/n;
+  const m3 = arr.reduce((a,b)=>a+Math.pow(b-mean,3),0)/arr.length;
   return std > 0 ? m3 / Math.pow(std,3) : 0;
 }
 function kurtosisFn(arr, mean, std) {
-  const n = arr.length;
-  const m4 = arr.reduce((a,b)=>a+Math.pow(b-mean,4),0)/n;
+  const m4 = arr.reduce((a,b)=>a+Math.pow(b-mean,4),0)/arr.length;
   return std > 0 ? (m4 / Math.pow(std,4)) - 3 : 0;
 }
 
@@ -1224,113 +1095,93 @@ function portfolioSeries(returns, w, riskFree) {
   const cumulative = new Array(T);
   let cum = 1;
   for (let t = 0; t < T; t++) { cum *= (1 + daily[t]); cumulative[t] = cum; }
-  const runningMax = new Array(T);
   let rm = -Infinity;
-  for (let t = 0; t < T; t++) { rm = Math.max(rm, cumulative[t]); runningMax[t] = rm; }
-  const drawdown = cumulative.map((c,t) => c/runningMax[t] - 1);
+  const drawdown = cumulative.map(c => { rm = Math.max(rm, c); return c / rm - 1; });
 
   const window = 63;
-  const rollingSharpe = new Array(T).fill(0);
+  const rollingSharpe = new Array(T).fill(null);
   for (let t = window; t < T; t++) {
     const slice = daily.slice(t-window, t);
-    const m = slice.reduce((a,b)=>a+b,0)/window;
-    const variance = slice.reduce((a,b)=>a+(b-m)*(b-m),0)/(window-1);
-    const sd = Math.sqrt(variance);
+    const m = sumArr(slice)/window;
+    const sd = Math.sqrt(slice.reduce((a,b)=>a+(b-m)*(b-m),0)/(window-1));
     rollingSharpe[t] = sd > 0 ? (m*TRADING_DAYS - riskFree) / (sd*Math.sqrt(TRADING_DAYS)) : 0;
   }
 
-  const meanDaily = daily.reduce((a,b)=>a+b,0)/T;
+  const meanDaily = sumArr(daily)/T;
   const stdDaily = Math.sqrt(daily.reduce((a,b)=>a+(b-meanDaily)*(b-meanDaily),0)/(T-1));
-  const skewness = skewFn(daily, meanDaily, stdDaily);
-  const kurt = kurtosisFn(daily, meanDaily, stdDaily);
-  const maxDrawdown = Math.min(...drawdown);
-  const totalReturn = cumulative[T-1] - 1;
 
   return {
     cumulative: cumulative.map(c => +(c*100).toFixed(3)),
     drawdown: drawdown.map(d => +(d*100).toFixed(3)),
-    rolling_sharpe: rollingSharpe.map(s => +s.toFixed(3)),
+    rolling_sharpe: rollingSharpe.map(s => s === null ? null : +s.toFixed(3)),
     daily_mean: meanDaily, daily_std: stdDaily,
-    skew: skewness, kurtosis: kurt,
-    max_drawdown: maxDrawdown, total_return: totalReturn,
+    skew: skewFn(daily, meanDaily, stdDaily), kurtosis: kurtosisFn(daily, meanDaily, stdDaily),
+    max_drawdown: Math.min(...drawdown), total_return: cumulative[T-1] - 1,
   };
 }
 
 // ───────── MAIN PIPELINE ─────────
 
-function runFullAnalysis(rows, riskFreeAnnual, progressCb) {
+const tick = () => new Promise(r => setTimeout(r, 0));
+
+async function runFullAnalysis(data, riskFreeAnnual, progressCb) {
   progressCb = progressCb || function(){};
-  if (riskFreeAnnual === undefined) riskFreeAnnual = 0.012;
-
-  progressCb('Parsing file...');
-  const parsed = parseToWidePrices(rows);
-  const tickers = parsed.tickers, dates = parsed.dates, prices = parsed.prices;
+  const { tickers, dates, prices } = data;
   const n = tickers.length;
-  if (n < 2) throw new Error("Need at least 2 tickers with overlapping price history.");
-  if (dates.length < 30) throw new Error("Not enough overlapping trading days (need at least 30) — check your data has consistent dates across all tickers.");
+  if (n < 2) throw new Error("Need at least 2 holdings with price history.");
+  if (n > MAX_HOLDINGS) throw new Error(`Maximum of ${MAX_HOLDINGS} holdings.`);
+  if (dates.length < 30) throw new Error(`Only ${dates.length} trading days where every holding has a price. Need at least 30 — a recently listed holding may be limiting the overlap.`);
+  const minW = MIN_WEIGHT;
 
-  progressCb('Computing returns...');
+  const step = async (msg) => { progressCb(msg); await tick(); };
+
+  await step('Computing returns...');
   const returns = computeDailyReturns(prices);
   const dailyMean = meanVec(returns);
   const dailyCov = covMatrix(returns, dailyMean);
-
   const meanAnnual = dailyMean.map(m => m * TRADING_DAYS);
   const covAnnual = dailyCov.map(row => row.map(v => v * TRADING_DAYS));
 
-  progressCb('Optimizing for max Sharpe...');
-  let wMaxSharpeRaw = optimizePortfolio(meanAnnual, covAnnual, riskFreeAnnual, 'sharpe', 4000);
-  const wMaxSharpe = roundToPct(wMaxSharpeRaw, meanAnnual, covAnnual, riskFreeAnnual, 'sharpe');
+  await step('Optimising for max Sharpe...');
+  const wMaxSharpe = roundWithFloor(
+    optimizePortfolio(meanAnnual, covAnnual, riskFreeAnnual, 'sharpe', minW, 4000),
+    w => portStats(w, meanAnnual, covAnnual, riskFreeAnnual).sharpe);
 
-  progressCb('Optimizing for min variance...');
-  let wMinVarRaw = optimizePortfolio(meanAnnual, covAnnual, riskFreeAnnual, 'variance', 4000);
-  const wMinVar = roundToPct(wMinVarRaw, meanAnnual, covAnnual, riskFreeAnnual, 'variance');
+  await step('Optimising for minimum variance...');
+  const wMinVar = roundWithFloor(
+    optimizePortfolio(meanAnnual, covAnnual, riskFreeAnnual, 'variance', minW, 4000),
+    w => -quadForm(w, covAnnual));
 
-  const wEqualRaw = new Array(n).fill(1/n);
-  const wEqual = roundToPctNeutral(wEqualRaw);
+  const wEqual = roundNeutralFloor(new Array(n).fill(1/n));
 
-  progressCb('Optimizing for max return...');
-  let wMaxReturn;
-  if (n > 100) {
-    // A 1%-per-holding floor across more than 100 names can't sum to 100%,
-    // so fall back to equal weight rather than fail outright.
-    wMaxReturn = wEqual.slice();
-  } else {
-    const minW = 0.01;
-    let wMaxReturnRaw = optimizeMaxCumulativeReturn(returns, minW, 3000);
-    wMaxReturn = roundToPctMaxReturn(wMaxReturnRaw, returns);
-  }
+  await step('Optimising for highest return...');
+  const wMaxReturn = roundWithFloor(
+    optimizeMaxCumulativeReturn(returns, minW, 3000),
+    w => cumulativeReturnOf(returns, w));
 
-  progressCb('Building efficient frontier...');
+  await step('Building risk/return curve...');
   const minVarReturn = portStats(wMinVar, meanAnnual, covAnnual, riskFreeAnnual).return;
-  const maxReturn = Math.max.apply(null, meanAnnual);
-  const frontier = buildEfficientFrontier(meanAnnual, covAnnual, riskFreeAnnual, minVarReturn, maxReturn, 30);
+  const curve = buildRiskReturnCurve(meanAnnual, covAnnual, riskFreeAnnual, minW, minVarReturn, 30);
 
-  progressCb('Running Monte Carlo simulation...');
-  const monteCarlo = monteCarloCloud(meanAnnual, covAnnual, riskFreeAnnual, n, 4000);
+  await step('Running Monte Carlo simulation...');
+  const monteCarlo = monteCarloCloud(meanAnnual, covAnnual, riskFreeAnnual, n, minW, 4000);
 
-  progressCb('Computing risk contributions...');
-  const rcMaxSharpe = riskContribution(wMaxSharpe, covAnnual);
-  const rcMinVar = riskContribution(wMinVar, covAnnual);
-  const rcEqual = riskContribution(wEqual, covAnnual);
-  const rcMaxReturn = riskContribution(wMaxReturn, covAnnual);
-
-  progressCb('Computing performance series...');
+  await step('Computing performance series...');
   const portfolios = { max_sharpe: wMaxSharpe, min_variance: wMinVar, equal_weight: wEqual, max_return: wMaxReturn };
   const series = {};
+  const rc = {};
+  const rcObj = (arr) => { const o = {}; tickers.forEach((t,i)=>{ o[t] = +arr[i].toFixed(5); }); return o; };
   for (const key in portfolios) {
-    series[key] = portfolioSeries(returns, portfolios[key], riskFreeAnnual);
+    series[key] = Object.assign({ dates: dates.slice(1) }, portfolioSeries(returns, portfolios[key], riskFreeAnnual));
+    rc[key] = rcObj(riskContribution(portfolios[key], covAnnual));
   }
 
-  progressCb('Computing correlation matrix...');
   const corr = corrMatrix(dailyCov);
 
   const stockStats = {};
   tickers.forEach((t, i) => {
-    stockStats[t] = {
-      mean_return: meanAnnual[i],
-      std_dev: Math.sqrt(covAnnual[i][i]),
-      sharpe: (meanAnnual[i] - riskFreeAnnual) / Math.sqrt(covAnnual[i][i]),
-    };
+    const sd = Math.sqrt(covAnnual[i][i]);
+    stockStats[t] = { mean_return: meanAnnual[i], std_dev: sd, sharpe: sd > 0 ? (meanAnnual[i] - riskFreeAnnual) / sd : 0 };
   });
 
   const portfolioOut = {};
@@ -1344,8 +1195,6 @@ function runFullAnalysis(rows, riskFreeAnnual, progressCb) {
 
   progressCb('Done.');
 
-  const rcObj = (arr) => { const o = {}; tickers.forEach((t,i)=>{ o[t] = +arr[i].toFixed(5); }); return o; };
-
   return {
     tickers,
     date_range: [dates[0], dates[dates.length-1]],
@@ -1353,33 +1202,168 @@ function runFullAnalysis(rows, riskFreeAnnual, progressCb) {
     risk_free_rate: riskFreeAnnual,
     stock_stats: stockStats,
     portfolios: portfolioOut,
-    risk_contribution: {
-      max_sharpe: rcObj(rcMaxSharpe),
-      min_variance: rcObj(rcMinVar),
-      equal_weight: rcObj(rcEqual),
-      max_return: rcObj(rcMaxReturn),
-    },
-    efficient_frontier: {
-      return: frontier.map(p=>p.return), std: frontier.map(p=>p.std), sharpe: frontier.map(p=>p.sharpe),
-    },
+    risk_contribution: rc,
+    curve: { return: curve.map(p=>p.return), std: curve.map(p=>p.std), sharpe: curve.map(p=>p.sharpe) },
     monte_carlo: monteCarlo,
-    series: {
-      max_sharpe: Object.assign({dates: dates.slice(1)}, series.max_sharpe),
-      min_variance: Object.assign({dates: dates.slice(1)}, series.min_variance),
-      equal_weight: Object.assign({dates: dates.slice(1)}, series.equal_weight),
-      max_return: Object.assign({dates: dates.slice(1)}, series.max_return),
-    },
-    correlation: { tickers: tickers, matrix: corr.map(row => row.map(v => +v.toFixed(3))) },
+    series,
+    correlation: { tickers, matrix: corr.map(row => row.map(v => +v.toFixed(3))) },
   };
 }
-// SHARED SETUP (runs once on page load, independent of any uploaded data)
+
+// ═══════════════════════════════════════════════════════════════════════
+// FMP DATA LAYER
+// ═══════════════════════════════════════════════════════════════════════
+
+const FMP_BASE = 'https://financialmodelingprep.com';
+
+class FatalFetchError extends Error {}
+
+function isoDate(d) { return d.toISOString().slice(0, 10); }
+
+function fmpMessage(body) {
+  if (typeof body === 'string') return body.trim().slice(0, 240);
+  if (body && typeof body === 'object' && !Array.isArray(body)) {
+    return body['Error Message'] || body.error || body.message || '';
+  }
+  return '';
+}
+
+/** Accepts the stable array shape or the legacy {historical:[...]} shape. */
+function extractSeries(body) {
+  const arr = Array.isArray(body) ? body : (body && Array.isArray(body.historical) ? body.historical : null);
+  if (!arr || !arr.length) return null;
+  const out = [];
+  let adjustedRows = 0;
+  for (const r of arr) {
+    if (!r || !r.date) continue;
+    let p;
+    if (r.adjClose != null && isFinite(+r.adjClose)) { p = +r.adjClose; adjustedRows++; }
+    else if (r.close != null) p = +r.close;
+    else if (r.price != null) p = +r.price;
+    if (isFinite(p) && p > 0) out.push([String(r.date).slice(0, 10), p]);
+  }
+  if (!out.length) return null;
+  return { points: out, adjusted: adjustedRows === out.length };
+}
+
+async function fetchTickerHistory(symbol, from, to, apiKey, fetchImpl) {
+  const f = fetchImpl || fetch;
+  const s = encodeURIComponent(symbol), k = encodeURIComponent(apiKey);
+  const urls = [
+    `${FMP_BASE}/stable/historical-price-eod/dividend-adjusted?symbol=${s}&from=${from}&to=${to}&apikey=${k}`,
+    `${FMP_BASE}/stable/historical-price-eod/full?symbol=${s}&from=${from}&to=${to}&apikey=${k}`,
+    `${FMP_BASE}/api/v3/historical-price-full/${s}?from=${from}&to=${to}&apikey=${k}`,
+  ];
+  let lastErr = 'no price data returned';
+  let networkFailures = 0;
+  for (const url of urls) {
+    let status, body;
+    try {
+      const res = await f(url);
+      status = res.status;
+      const text = await res.text();
+      try { body = JSON.parse(text); } catch { body = text; }
+    } catch (e) {
+      networkFailures++;
+      lastErr = 'network error';
+      continue;
+    }
+    const msg = fmpMessage(body);
+    if (status === 401 || /invalid api key/i.test(msg)) {
+      throw new FatalFetchError('FMP rejected the API key. Check the key and try again.');
+    }
+    if (status === 429 || /limit reach/i.test(msg)) {
+      throw new FatalFetchError('FMP daily request limit reached for this API key. Try again later or use a different key.');
+    }
+    const series = extractSeries(body);
+    if (series) return series;
+    if (msg) lastErr = msg;
+    else if (status >= 400) lastErr = `HTTP ${status}`;
+  }
+  if (networkFailures === urls.length) {
+    throw new FatalFetchError("Couldn't reach financialmodelingprep.com. Check your internet connection.");
+  }
+  throw new Error(lastErr);
+}
+
+/**
+ * Fetches every ticker (4 at a time), then aligns them on the dates where
+ * all of them have a price. Returns the wide price matrix plus notes about
+ * skipped tickers and which holding (if any) shortened the sample.
+ */
+async function fetchPortfolioPrices(tickers, years, apiKey, onProgress, fetchImpl) {
+  const to = new Date();
+  const from = new Date(to);
+  from.setFullYear(from.getFullYear() - years);
+  const fromStr = isoDate(from), toStr = isoDate(to);
+
+  const results = {};
+  const failures = [];
+  let done = 0;
+  let fatal = null;
+  const queue = tickers.slice();
+
+  async function worker() {
+    while (queue.length && !fatal) {
+      const t = queue.shift();
+      try {
+        results[t] = await fetchTickerHistory(t, fromStr, toStr, apiKey, fetchImpl);
+      } catch (e) {
+        if (e instanceof FatalFetchError) { fatal = e; return; }
+        failures.push({ ticker: t, reason: e.message });
+      }
+      done++;
+      onProgress && onProgress(done, tickers.length, t);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(4, tickers.length) }, worker));
+  if (fatal) throw fatal;
+
+  const ok = tickers.filter(t => results[t]);
+  if (ok.length < 2) {
+    const why = failures.map(f => `${f.ticker} (${f.reason})`).join(', ');
+    throw new Error(`Need at least 2 holdings with price data. No data for: ${why || 'all tickers'}.`);
+  }
+
+  const maps = {};
+  let latestStart = null, latestStartTicker = null;
+  for (const t of ok) {
+    const m = new Map(results[t].points);
+    maps[t] = m;
+    const first = results[t].points.reduce((a, p) => (p[0] < a ? p[0] : a), '9999-12-31');
+    if (latestStart === null || first > latestStart) { latestStart = first; latestStartTicker = t; }
+  }
+  let common = Array.from(maps[ok[0]].keys());
+  for (const t of ok.slice(1)) common = common.filter(d => maps[t].has(d));
+  common.sort();
+
+  const prices = common.map(d => ok.map(t => maps[t].get(d)));
+
+  // Flag a holding whose history starts well after the requested window opens.
+  const requestedDays = (to - from) / 86400000;
+  const shortDays = (to - new Date(latestStart)) / 86400000;
+  const shortenedBy = shortDays < requestedDays * 0.9 ? latestStartTicker : null;
+
+  return {
+    tickers: ok,
+    dates: common,
+    prices,
+    failures,
+    allAdjusted: ok.every(t => results[t].adjusted),
+    shortenedBy,
+    shortenedStart: latestStart,
+  };
+}
+</script>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// SHARED SETUP
 // ═══════════════════════════════════════════════════════════
 
 const COLORS = {
   text: '#e8edf4', dim: '#7c8a9e', faint: '#4a5568', line: '#1f2937',
-  accent: '#4ad9c4', accentDim: 'rgba(74,217,196,0.25)',
-  gold: '#e8b84a', red: '#e8584a', blue: '#5a8fe8', purple: '#a78bfa',
-  cloud: 'rgba(80,95,115,0.35)'
+  accent: '#4ad9c4', gold: '#e8b84a', red: '#e8584a', blue: '#5a8fe8', purple: '#a78bfa',
 };
 
 const PALETTE = ['#4ad9c4','#e8b84a','#5a8fe8','#e8584a','#a78bfa','#f472b6','#34d399',
@@ -1392,6 +1376,11 @@ Chart.defaults.borderColor = COLORS.line;
 function fmtPct(x, d=1){ return (x*100).toFixed(d) + '%'; }
 function fmtNum(x, d=2){ return x.toFixed(d); }
 
+const store = {
+  get(k, fallback) { try { const v = localStorage.getItem('pfopt.' + k); return v === null ? fallback : JSON.parse(v); } catch { return fallback; } },
+  set(k, v) { try { localStorage.setItem('pfopt.' + k, JSON.stringify(v)); } catch {} },
+};
+
 // ───────── TAB SWITCHING ─────────
 const tabButtons = document.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
@@ -1401,122 +1390,179 @@ tabButtons.forEach(btn => {
     tabContents.forEach(c => c.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    requestAnimationFrame(() => {
-      Object.values(Chart.instances).forEach(c => c.resize());
-    });
+    requestAnimationFrame(() => Object.values(Chart.instances).forEach(c => c.resize()));
   });
 });
 
 // ═══════════════════════════════════════════════════════════
-// FILE UPLOAD HANDLING
+// PORTFOLIO INPUT
 // ═══════════════════════════════════════════════════════════
 
-const dropzone = document.getElementById('dropzone');
-const fileInput = document.getElementById('file-input');
-const uploadStatus = document.getElementById('upload-status');
+const EXAMPLE_TICKERS = ['AAPL','MSFT','NVDA','AMZN','GOOGL','JPM','JNJ','XOM','PG','KO'];
+const TICKER_RE = /^[A-Z0-9][A-Z0-9.\-^=]{0,14}$/;
+
+const tickerBox = document.getElementById('ticker-box');
+const tickerInput = document.getElementById('ticker-input');
+const tickerCount = document.getElementById('ticker-count');
+const runBtn = document.getElementById('run-btn');
+const inputStatus = document.getElementById('input-status');
 const rfInput = document.getElementById('rf-input');
+const keyInput = document.getElementById('key-input');
+const lookbackSelect = document.getElementById('lookback-select');
 const overlay = document.getElementById('processing-overlay');
 const processingStatus = document.getElementById('processing-status');
-const changeFileBtn = document.getElementById('change-file-btn');
+const progressFill = document.getElementById('progress-fill');
 
-dropzone.addEventListener('click', () => fileInput.click());
-dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
-dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
-dropzone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropzone.classList.remove('drag-over');
-  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-});
-fileInput.addEventListener('change', e => {
-  if (e.target.files.length) handleFile(e.target.files[0]);
-});
+let tickers = store.get('tickers', []);
+if (!Array.isArray(tickers)) tickers = [];
+rfInput.value = store.get('rf', rfInput.value);
+lookbackSelect.value = String(store.get('years', lookbackSelect.value));
+keyInput.value = store.get('key', keyInput.value);
 
-changeFileBtn.addEventListener('click', () => {
-  document.getElementById('app-view').style.display = 'none';
-  document.getElementById('upload-view').style.display = 'flex';
-  uploadStatus.textContent = '';
-  uploadStatus.className = '';
-  fileInput.value = '';
-});
-
-function handleFile(file){
-  const name = file.name.toLowerCase();
-  if (!name.endsWith('.xlsx') && !name.endsWith('.xls') && !name.endsWith('.csv')){
-    uploadStatus.textContent = 'Please upload a .xlsx, .xls, or .csv file.';
-    uploadStatus.className = 'error';
-    return;
-  }
-
-  uploadStatus.textContent = `Reading ${file.name}...`;
-  uploadStatus.className = 'processing';
-
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const data = new Uint8Array(e.target.result);
-      const wb = XLSX.read(data, { type: 'array', cellDates: true });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { raw: true, defval: null });
-
-      if (!rows.length){
-        throw new Error('The file appears to be empty.');
-      }
-
-      processRows(rows);
-    } catch (err) {
-      console.error(err);
-      uploadStatus.textContent = 'Error reading file: ' + err.message;
-      uploadStatus.className = 'error';
-    }
-  };
-  reader.onerror = () => {
-    uploadStatus.textContent = 'Could not read the file. Please try again.';
-    uploadStatus.className = 'error';
-  };
-  reader.readAsArrayBuffer(file);
+function setStatus(msg, isError) {
+  inputStatus.textContent = msg || '';
+  inputStatus.className = isError ? 'error' : '';
 }
 
-function processRows(rows){
-  overlay.classList.add('active');
+function renderChips() {
+  tickerBox.querySelectorAll('.chip').forEach(c => c.remove());
+  tickers.forEach((t, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.textContent = t;
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.setAttribute('aria-label', 'Remove ' + t);
+    x.textContent = '×';
+    x.addEventListener('click', (e) => { e.stopPropagation(); tickers.splice(i, 1); renderChips(); });
+    chip.appendChild(x);
+    tickerBox.insertBefore(chip, tickerInput);
+  });
+  const n = tickers.length;
+  tickerCount.textContent = `${n} holding${n === 1 ? '' : 's'}` + (n > 0 ? ` · equal weight ${(100/n).toFixed(1)}% each` : '');
+  runBtn.disabled = n < 2;
+  store.set('tickers', tickers);
+}
+
+function addTickers(text) {
+  const parts = text.toUpperCase().split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
+  const bad = [];
+  let capped = false;
+  for (const p of parts) {
+    if (!TICKER_RE.test(p)) { bad.push(p); continue; }
+    if (tickers.includes(p)) continue;
+    if (tickers.length >= MAX_HOLDINGS) { capped = true; break; }
+    tickers.push(p);
+  }
+  renderChips();
+  if (capped) setStatus(`Maximum of ${MAX_HOLDINGS} holdings.`, true);
+  else if (bad.length) setStatus(`Skipped invalid ticker${bad.length > 1 ? 's' : ''}: ${bad.join(', ')}`, true);
+  else setStatus('');
+}
+
+tickerBox.addEventListener('click', () => tickerInput.focus());
+tickerInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ',' || e.key === ' ' || e.key === 'Tab') {
+    if (tickerInput.value.trim()) {
+      e.preventDefault();
+      addTickers(tickerInput.value);
+      tickerInput.value = '';
+    } else if (e.key === 'Enter' && tickers.length >= 2) {
+      e.preventDefault();
+      runOptimisation();
+    }
+  } else if (e.key === 'Backspace' && !tickerInput.value && tickers.length) {
+    tickers.pop(); renderChips();
+  }
+});
+tickerInput.addEventListener('paste', (e) => {
+  const text = (e.clipboardData || window.clipboardData).getData('text');
+  if (/[\s,;]/.test(text.trim())) { e.preventDefault(); addTickers(text); tickerInput.value = ''; }
+});
+tickerInput.addEventListener('blur', () => {
+  if (tickerInput.value.trim()) { addTickers(tickerInput.value); tickerInput.value = ''; }
+});
+document.getElementById('example-btn').addEventListener('click', () => { tickers = EXAMPLE_TICKERS.slice(); renderChips(); setStatus(''); });
+document.getElementById('clear-btn').addEventListener('click', () => { tickers = []; renderChips(); setStatus(''); tickerInput.focus(); });
+runBtn.addEventListener('click', runOptimisation);
+
+document.getElementById('edit-btn').addEventListener('click', () => {
+  document.getElementById('app-view').style.display = 'none';
+  document.getElementById('input-view').style.display = 'flex';
+  setStatus('');
+  window.scrollTo(0, 0);
+});
+
+renderChips();
+
+async function runOptimisation() {
+  if (tickerInput.value.trim()) { addTickers(tickerInput.value); tickerInput.value = ''; }
+  if (tickers.length < 2) { setStatus('Add at least 2 tickers.', true); return; }
+  const apiKey = keyInput.value.trim();
+  if (!apiKey) { setStatus('Enter your FMP API key.', true); return; }
   const rfPct = parseFloat(rfInput.value);
   const riskFree = (isNaN(rfPct) ? 1.2 : rfPct) / 100;
+  const years = parseInt(lookbackSelect.value, 10) || 3;
+  store.set('rf', rfInput.value); store.set('years', years); store.set('key', apiKey);
 
-  // Run on next tick so the overlay actually paints before the (synchronous,
-  // CPU-heavy) optimization work blocks the main thread.
-  setTimeout(() => {
-    try {
-      const result = runFullAnalysis(rows, riskFree, (msg) => {
-        processingStatus.textContent = msg;
-      });
-      overlay.classList.remove('active');
-      document.getElementById('upload-view').style.display = 'none';
-      document.getElementById('app-view').style.display = 'block';
-      renderDashboard(result);
-    } catch (err) {
-      console.error(err);
-      overlay.classList.remove('active');
-      uploadStatus.textContent = 'Error: ' + err.message;
-      uploadStatus.className = 'error';
-    }
-  }, 50);
+  setStatus('');
+  runBtn.disabled = true;
+  overlay.classList.add('active');
+  progressFill.style.width = '0%';
+  processingStatus.textContent = `Fetching prices for ${tickers.length} holdings...`;
+
+  try {
+    const data = await fetchPortfolioPrices(tickers, years, apiKey, (done, total, t) => {
+      processingStatus.textContent = `Fetched ${t} (${done}/${total})`;
+      progressFill.style.width = (done / total * 60) + '%';
+    });
+    const stages = 7; let stage = 0;
+    const result = await runFullAnalysis(data, riskFree, (msg) => {
+      processingStatus.textContent = msg;
+      stage++;
+      progressFill.style.width = (60 + Math.min(stage, stages) / stages * 40) + '%';
+    });
+    result.fetch = data;
+    overlay.classList.remove('active');
+    document.getElementById('input-view').style.display = 'none';
+    document.getElementById('app-view').style.display = 'block';
+    window.scrollTo(0, 0);
+    renderDashboard(result);
+  } catch (err) {
+    console.error(err);
+    overlay.classList.remove('active');
+    setStatus(err.message || String(err), true);
+  } finally {
+    runBtn.disabled = tickers.length < 2;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
-// DASHBOARD RENDERING — called once with the parsed/optimized data
+// DASHBOARD RENDERING
 // ═══════════════════════════════════════════════════════════
 
 function renderDashboard(DATA){
-  // Clear any previous render (in case of re-upload via 'Load different file')
   document.getElementById('overview-cards').innerHTML = '';
   document.getElementById('portfolio-sheet-row').innerHTML = '';
   document.querySelector('#stock-stats-table tbody').innerHTML = '';
+  document.querySelector('#weights-table tbody').innerHTML = '';
   document.getElementById('compare-toggles').innerHTML = '';
   document.querySelector('#compare-table tbody').innerHTML = '';
   Object.values(Chart.instances).forEach(c => c.destroy());
 
+  const F = DATA.fetch;
+  document.getElementById('header-holdings').textContent = `${DATA.tickers.length} holdings · ${DATA.tickers.join(', ')}`;
   document.getElementById('header-dates').textContent = DATA.date_range[0] + ' → ' + DATA.date_range[1];
   document.getElementById('header-ndays').textContent = DATA.n_days.toLocaleString();
   document.getElementById('header-rf').textContent = fmtPct(DATA.risk_free_rate, 2);
+  document.getElementById('header-source').textContent = F.allAdjusted ? 'FMP, dividend-adjusted' : 'FMP, close';
+
+  const notices = [];
+  if (F.failures.length) notices.push(`Left out (no price data from FMP): ${F.failures.map(f => `${f.ticker} — ${f.reason}`).join('; ')}.`);
+  if (F.shortenedBy) notices.push(`${F.shortenedBy} only has prices from ${F.shortenedStart}, so the sample starts there for every holding.`);
+  const noticeBar = document.getElementById('notice-bar');
+  noticeBar.textContent = notices.join(' ');
+  noticeBar.hidden = notices.length === 0;
 
   function scatterDataset(label, x, y, color, pointStyle, radius, extra={}){
     return Object.assign({
@@ -1527,104 +1573,92 @@ function renderDashboard(DATA){
     }, extra);
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // ROW 1 — TOP STAT CARDS
-  // ═══════════════════════════════════════════════════════════
+  const P = DATA.portfolios;
 
-  function buildOverviewCards(){
-    const order = [
-      {key:'max_sharpe', label:'Max Sharpe (Optimal)', sub:'Optimized for highest risk-adjusted return', cls:'lead', color:COLORS.gold},
-      {key:'max_return', label:'Highest Return', sub:`Best realized return, every holding \u22651%`, cls:'lead-purple', color:COLORS.purple},
-      {key:'equal_weight', label:'Equal Weight', sub:`1/${DATA.tickers.length} allocation across all holdings`, cls:'', color:COLORS.red},
-      {key:'min_variance', label:'Minimum Variance', sub:'Optimized for lowest risk', cls:'', color:COLORS.blue},
-    ];
-    const wrap = document.getElementById('overview-cards');
-    order.forEach(o => {
-      const p = DATA.portfolios[o.key];
-      const div = document.createElement('div');
-      div.className = 'pp-card' + (o.cls ? ' ' + o.cls : '');
-      div.innerHTML = `
-        <div class="pp-name">${o.label}</div>
-        <div class="pp-sub">${o.sub}</div>
-        <div class="pp-metrics">
-          <div><div class="pp-metric-label">Return</div><div class="pp-metric-value" style="color:${o.color}">${fmtPct(p.return)}</div></div>
-          <div><div class="pp-metric-label">Risk</div><div class="pp-metric-value">${fmtPct(p.std)}</div></div>
-          <div><div class="pp-metric-label">Sharpe</div><div class="pp-metric-value" style="color:${o.color}">${fmtNum(p.sharpe)}</div></div>
-        </div>
-      `;
-      wrap.appendChild(div);
-    });
-  }
-  buildOverviewCards();
+  // ───── TOP STAT CARDS ─────
+  [
+    {key:'max_sharpe', label:'Max Sharpe', sub:'Highest risk-adjusted return, every holding ≥1%', cls:'lead', color:COLORS.gold},
+    {key:'max_return', label:'Highest Return', sub:'Best realised return, every holding ≥1%', cls:'lead-purple', color:COLORS.purple},
+    {key:'equal_weight', label:'Equal Weight', sub:`1/${DATA.tickers.length} allocation across all holdings`, cls:'', color:COLORS.red},
+    {key:'min_variance', label:'Minimum Variance', sub:'Lowest risk, every holding ≥1%', cls:'', color:COLORS.blue},
+  ].forEach(o => {
+    const p = P[o.key];
+    const div = document.createElement('div');
+    div.className = 'pp-card' + (o.cls ? ' ' + o.cls : '');
+    div.innerHTML = `
+      <div class="pp-name">${o.label}</div>
+      <div class="pp-sub">${o.sub}</div>
+      <div class="pp-metrics">
+        <div><div class="pp-metric-label">Return</div><div class="pp-metric-value" style="color:${o.color}">${fmtPct(p.return)}</div></div>
+        <div><div class="pp-metric-label">Risk</div><div class="pp-metric-value">${fmtPct(p.std)}</div></div>
+        <div><div class="pp-metric-label">Sharpe</div><div class="pp-metric-value" style="color:${o.color}">${fmtNum(p.sharpe)}</div></div>
+      </div>`;
+    document.getElementById('overview-cards').appendChild(div);
+  });
 
-  // ═══════════════════════════════════════════════════════════
-  // ROW 2 — EFFICIENT FRONTIER (full width)
-  // ═══════════════════════════════════════════════════════════
+  // ───── RISK VS RETURN CHART ─────
+  const nSims = DATA.monte_carlo.std.length.toLocaleString();
+  document.getElementById('cloud-count-badge').textContent = `${nSims} simulations`;
+  document.getElementById('legend-cloud').textContent = `Random portfolios (${nSims})`;
 
-  document.getElementById('frontier-count-badge').textContent = `${DATA.monte_carlo.std.length.toLocaleString()} simulations`;
-
-  new Chart(document.getElementById('chart-frontier-main'), {
+  new Chart(document.getElementById('chart-riskreturn-main'), {
     type: 'scatter',
     data: { datasets: [
       {
         label:'Random portfolios', data: DATA.monte_carlo.std.map((v,i)=>({x:v,y:DATA.monte_carlo.return[i]})),
         backgroundColor: DATA.monte_carlo.sharpe.map(s => {
           const t = Math.max(0, Math.min(1, (s - 0.2) / 1.8));
-          const r = Math.round(42 + t*30), g = Math.round(60 + t*157), b = Math.round(80 + t*116);
-          return `rgba(${r},${g},${b},0.55)`;
+          return `rgba(${Math.round(42 + t*30)},${Math.round(60 + t*157)},${Math.round(80 + t*116)},0.55)`;
         }),
         pointRadius: 2.2, showLine:false,
       },
-      Object.assign(scatterDataset('Efficient frontier', DATA.efficient_frontier.std, DATA.efficient_frontier.return, COLORS.accent, 'line', 0), {showLine:true, borderWidth:3, fill:false, tension:0.15}),
-      scatterDataset('Max Sharpe', [DATA.portfolios.max_sharpe.std], [DATA.portfolios.max_sharpe.return], COLORS.gold, 'star', 11),
-      scatterDataset('Highest Return', [DATA.portfolios.max_return.std], [DATA.portfolios.max_return.return], COLORS.purple, 'star', 11),
-      scatterDataset('Min Variance', [DATA.portfolios.min_variance.std], [DATA.portfolios.min_variance.return], COLORS.blue, 'rectRot', 9),
-      scatterDataset('Equal Weight', [DATA.portfolios.equal_weight.std], [DATA.portfolios.equal_weight.return], COLORS.red, 'triangle', 9),
+      Object.assign(scatterDataset('Best achievable', DATA.curve.std, DATA.curve.return, COLORS.accent, 'line', 0), {showLine:true, borderWidth:3, fill:false, tension:0.15}),
+      scatterDataset('Max Sharpe', [P.max_sharpe.std], [P.max_sharpe.return], COLORS.gold, 'star', 11),
+      scatterDataset('Highest Return', [P.max_return.std], [P.max_return.return], COLORS.purple, 'star', 11),
+      scatterDataset('Min Variance', [P.min_variance.std], [P.min_variance.return], COLORS.blue, 'rectRot', 9),
+      scatterDataset('Equal Weight', [P.equal_weight.std], [P.equal_weight.return], COLORS.red, 'triangle', 9),
     ]},
     options: {
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:(c)=>`σ=${fmtPct(c.parsed.x)}  r=${fmtPct(c.parsed.y)}`}} },
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:(c)=>`${c.dataset.label}: σ=${fmtPct(c.parsed.x)}  r=${fmtPct(c.parsed.y)}`}} },
       scales:{
-        x:{ title:{display:true, text:'Annualized Std Dev (Risk)', color:COLORS.faint}, grid:{color:COLORS.line}, ticks:{callback:v=>fmtPct(v,0)} },
-        y:{ title:{display:true, text:'Annualized Return', color:COLORS.faint}, grid:{color:COLORS.line}, ticks:{callback:v=>fmtPct(v,0)} },
+        x:{ title:{display:true, text:'Annualised Std Dev (Risk)', color:COLORS.faint}, grid:{color:COLORS.line}, ticks:{callback:v=>fmtPct(v,0)} },
+        y:{ title:{display:true, text:'Annualised Return', color:COLORS.faint}, grid:{color:COLORS.line}, ticks:{callback:v=>fmtPct(v,0)} },
       }
     }
   });
 
-  const msTop = Object.entries(DATA.portfolios.max_sharpe.weights).sort((a,b)=>b[1]-a[1]).filter(([,v])=>v>0.001);
-  const mrTop = Object.entries(DATA.portfolios.max_return.weights).sort((a,b)=>b[1]-a[1]);
+  const msTop = Object.entries(P.max_sharpe.weights).sort((a,b)=>b[1]-a[1]);
+  const mrTop = Object.entries(P.max_return.weights).sort((a,b)=>b[1]-a[1]);
   const mrSeries = DATA.series.max_return;
+  const ms = P.max_sharpe, ew = P.equal_weight;
+  const topList = (arr, k) => arr.slice(0, k).map(([t,w]) => `<strong>${t} (${fmtPct(w,0)})</strong>`).join(', ');
+  let vsEqual;
+  if (ms.std <= ew.std && ms.return >= ew.return) vsEqual = 'It sits up and to the left of the equal-weight red triangle: more return for less risk.';
+  else if (ms.std <= ew.std) vsEqual = 'It sits to the left of the equal-weight red triangle, giving up some return for noticeably less risk.';
+  else vsEqual = 'It takes on more risk than the equal-weight red triangle, but earns enough extra return to more than pay for it.';
+
   document.getElementById('overview-insight').innerHTML = `
-    The dashed cloud is ${DATA.monte_carlo.std.length.toLocaleString()} randomly-weighted portfolios; the teal curve is the true <strong>efficient frontier</strong>,
-    computed via constrained mean-variance optimization for the minimum-risk portfolio at each target return level.
-    Every point on that curve is the best possible risk/return trade-off achievable from these ${DATA.tickers.length} holdings &mdash; no random
-    combination of weights can beat it. The <span class="accent-text">gold star</span> marks the portfolio with the highest
-    Sharpe ratio (<strong>${fmtNum(DATA.portfolios.max_sharpe.sharpe)}</strong>), concentrated mainly in
-    <strong>${msTop[0][0]} (${fmtPct(msTop[0][1])})</strong>, <strong>${msTop[1][0]} (${fmtPct(msTop[1][1])})</strong> and
-    <strong>${msTop[2][0]} (${fmtPct(msTop[2][1])})</strong>. Notice it sits to the <em>left</em> of the equal-weight red
-    triangle &mdash; same or better return, for meaningfully less risk. The blue diamond is the minimum-variance portfolio,
-    anchoring the leftmost edge of the frontier. The <span style="color:${COLORS.purple}; font-weight:600;">purple star</span> is a
-    different kind of optimum: the weighting that maximizes <em>realized</em> cumulative return over the actual historical
-    path (not the expected/annualized return the frontier is built from), while still requiring every holding to keep at
-    least 1% &mdash; it grew $100 into <strong>$${(100*(1+mrSeries.total_return)).toFixed(2)}</strong> over the period,
-    concentrated mainly in <strong>${mrTop[0][0]} (${fmtPct(mrTop[0][1])})</strong>. It can sit off the teal curve since
-    it's chasing a different target, and that gap is a reminder that the best-performing portfolio in hindsight is rarely
-    the same as the one that looked optimal in advance.
+    Each grey dot is one of ${nSims} randomly weighted portfolios built from your ${DATA.tickers.length} holdings, every one keeping
+    each holding at 1% or more. The teal line is the best achievable trade-off: for each level of return, the lowest-risk
+    mix of these holdings under the same 1% minimum. No random weighting sits above it.
+    The <span style="color:${COLORS.gold}; font-weight:600;">gold star</span> is the portfolio with the highest Sharpe ratio
+    (<strong>${fmtNum(ms.sharpe)}</strong>), led by ${topList(msTop, 3)}. ${vsEqual}
+    The blue diamond is the minimum-variance portfolio at the far left of the line.
+    The <span style="color:${COLORS.purple}; font-weight:600;">purple star</span> answers a different question: which weights would
+    have produced the highest <em>realised</em> return over this exact price path. It grew $100 into
+    <strong>$${(100*(1+mrSeries.total_return)).toFixed(2)}</strong>, led by ${topList(mrTop, 2)}. It can sit off the teal line
+    because it targets what actually happened rather than average return and volatility, and the best portfolio in hindsight
+    is rarely the one that looked best in advance.
   `;
 
-  // ═══════════════════════════════════════════════════════════
-  // ROW 3 — THREE PORTFOLIOS SIDE BY SIDE (pie + stats each)
-  // ═══════════════════════════════════════════════════════════
-
-  function buildPortfolioSheetCard(key, label, sub, accentColor, badge, markerShape){
-    const p = DATA.portfolios[key];
+  // ───── PORTFOLIO CARDS (pie + stats) ─────
+  function buildPortfolioSheetCard(key, label, sub, accentColor, badge){
+    const p = P[key];
     const series = DATA.series[key];
-    const sortedWeights = Object.entries(p.weights).sort((a,b)=>b[1]-a[1]);
-    const nonZero = sortedWeights.filter(([,v])=>v>0.0005);
-
+    const sorted = Object.entries(p.weights).sort((a,b)=>b[1]-a[1]);
     const card = document.createElement('div');
     card.className = 'psheet-card' + (badge ? ' ' + badge.cls : '');
-
     const cardId = 'psheet-' + key;
     card.innerHTML = `
       <div class="psheet-head">
@@ -1641,25 +1675,18 @@ function renderDashboard(DATA){
         <div><div class="psheet-stat-label">Max DD</div><div class="psheet-stat-value" style="color:${COLORS.red}; font-size:14px;">${fmtPct(series.max_drawdown)}</div></div>
       </div>
       <div class="chart-box h-220"><canvas id="${cardId}-pie"></canvas></div>
-      <div class="psheet-legend" id="${cardId}-legend"></div>
-    `;
+      <div class="psheet-legend" id="${cardId}-legend"></div>`;
     document.getElementById('portfolio-sheet-row').appendChild(card);
 
-    const sliceColors = nonZero.map((_,i)=>PALETTE[i%PALETTE.length]);
+    const sliceColors = sorted.map((_,i)=>PALETTE[i%PALETTE.length]);
     new Chart(document.getElementById(cardId + '-pie'), {
       type:'doughnut',
-      data:{
-        labels: nonZero.map(([t])=>t),
-        datasets:[{ data: nonZero.map(([,v])=>v), backgroundColor: sliceColors, borderColor:'#10151d', borderWidth:2 }]
-      },
-      options:{
-        responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{display:false}, tooltip:{callbacks:{label:(c)=>`${c.label}: ${fmtPct(c.parsed)}`}} }
-      }
+      data:{ labels: sorted.map(([t])=>t), datasets:[{ data: sorted.map(([,v])=>v), backgroundColor: sliceColors, borderColor:'#10151d', borderWidth:2 }] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false}, tooltip:{callbacks:{label:(c)=>`${c.label}: ${fmtPct(c.parsed,0)}`}} } }
     });
-
     const legendWrap = document.getElementById(cardId + '-legend');
-    nonZero.forEach(([t,w], i) => {
+    sorted.forEach(([t,w], i) => {
       const item = document.createElement('div');
       item.className = 'psheet-legend-item';
       item.innerHTML = `<span class="psheet-legend-dot" style="background:${sliceColors[i]}"></span>${t} ${fmtPct(w,0)}`;
@@ -1667,22 +1694,47 @@ function renderDashboard(DATA){
     });
   }
 
-  buildPortfolioSheetCard('max_sharpe', 'Max Sharpe', 'Mathematically optimal allocation', COLORS.gold,
-    {cls:'lead', bg:'rgba(232,184,74,0.12)', color:COLORS.gold, text:'HIGHEST SHARPE'}, 'star');
-  buildPortfolioSheetCard('max_return', 'Highest Return', `Best realized return \u2014 every holding \u22651%`, COLORS.purple,
-    {cls:'lead-purple', bg:'rgba(167,139,250,0.12)', color:COLORS.purple, text:'HIGHEST RETURN'}, 'star');
-  buildPortfolioSheetCard('min_variance', 'Min Variance', 'Lowest possible risk', COLORS.blue, null, 'rectRot');
-  buildPortfolioSheetCard('equal_weight', 'Equal Weight', `1/${DATA.tickers.length} baseline allocation`, COLORS.red, null, 'triangle');
+  buildPortfolioSheetCard('max_sharpe', 'Max Sharpe', 'Best risk-adjusted mix', COLORS.gold,
+    {cls:'lead', bg:'rgba(232,184,74,0.12)', color:COLORS.gold, text:'HIGHEST SHARPE'});
+  buildPortfolioSheetCard('max_return', 'Highest Return', 'Best realised return', COLORS.purple,
+    {cls:'lead-purple', bg:'rgba(167,139,250,0.12)', color:COLORS.purple, text:'HIGHEST RETURN'});
+  buildPortfolioSheetCard('min_variance', 'Min Variance', 'Lowest possible risk', COLORS.blue, null);
+  buildPortfolioSheetCard('equal_weight', 'Equal Weight', `1/${DATA.tickers.length} baseline`, COLORS.red, null);
 
-  // ═══════════════════════════════════════════════════════════
-  // ROW 4 — INDIVIDUAL HOLDINGS
-  // ═══════════════════════════════════════════════════════════
+  // ───── WEIGHTS TABLE ─────
+  const weightCols = ['max_sharpe','max_return','min_variance','equal_weight'];
+  const weightOrder = DATA.tickers.slice().sort((a,b) => P.max_sharpe.weights[b] - P.max_sharpe.weights[a] || a.localeCompare(b));
+  const wBody = document.querySelector('#weights-table tbody');
+  weightOrder.forEach((t) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><span class="ticker-dot" style="background:${PALETTE[DATA.tickers.indexOf(t) % PALETTE.length]}"></span>${t}</td>` +
+      weightCols.map(k => {
+        const w = P[k].weights[t];
+        return `<td class="num${w <= 0.0100001 ? ' floor' : ''}">${fmtPct(w, 0)}</td>`;
+      }).join('');
+    wBody.appendChild(tr);
+  });
+  const totalRow = document.createElement('tr');
+  totalRow.innerHTML = `<td style="color:${COLORS.dim}">Total</td>` + weightCols.map(k =>
+    `<td class="num" style="color:${COLORS.dim}">${fmtPct(Object.values(P[k].weights).reduce((a,b)=>a+b,0), 0)}</td>`).join('');
+  wBody.appendChild(totalRow);
 
+  const copyBtn = document.getElementById('copy-weights-btn');
+  copyBtn.onclick = async () => {
+    const csv = ['Ticker,Max Sharpe,Highest Return,Min Variance,Equal Weight']
+      .concat(weightOrder.map(t => [t].concat(weightCols.map(k => (P[k].weights[t]*100).toFixed(0) + '%')).join(',')))
+      .join('\n');
+    try { await navigator.clipboard.writeText(csv); copyBtn.textContent = 'Copied'; }
+    catch { copyBtn.textContent = 'Copy failed'; }
+    setTimeout(() => { copyBtn.textContent = 'Copy as CSV'; }, 1600);
+  };
+
+  // ───── INDIVIDUAL HOLDINGS ─────
   new Chart(document.getElementById('chart-stock-scatter'), {
     type:'scatter',
     data:{ datasets:[{
       data: DATA.tickers.map(t => ({x: DATA.stock_stats[t].std_dev, y: DATA.stock_stats[t].mean_return, label:t})),
-      backgroundColor: PALETTE, pointRadius:6, pointHoverRadius:8,
+      backgroundColor: DATA.tickers.map((_,i) => PALETTE[i % PALETTE.length]), pointRadius:6, pointHoverRadius:8,
     }]},
     options:{
       responsive:true, maintainAspectRatio:false,
@@ -1694,32 +1746,28 @@ function renderDashboard(DATA){
     }
   });
 
-  (function(){
-    const tbody = document.querySelector('#stock-stats-table tbody');
-    DATA.tickers.slice().sort((a,b)=>DATA.stock_stats[b].sharpe - DATA.stock_stats[a].sharpe).forEach(t => {
-      const s = DATA.stock_stats[t];
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${t}</td><td>${fmtPct(s.mean_return)}</td><td>${fmtPct(s.std_dev)}</td><td>${fmtNum(s.sharpe)}</td>`;
-      tbody.appendChild(tr);
-    });
-  })();
+  const sBody = document.querySelector('#stock-stats-table tbody');
+  DATA.tickers.slice().sort((a,b)=>DATA.stock_stats[b].sharpe - DATA.stock_stats[a].sharpe).forEach(t => {
+    const s = DATA.stock_stats[t];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><span class="ticker-dot" style="background:${PALETTE[DATA.tickers.indexOf(t) % PALETTE.length]}"></span>${t}</td><td class="num">${fmtPct(s.mean_return)}</td><td class="num">${fmtPct(s.std_dev)}</td><td class="num">${fmtNum(s.sharpe)}</td>`;
+    sBody.appendChild(tr);
+  });
 
-  // ═══════════════════════════════════════════════════════════
-  // COMPARISON TAB
-  // ═══════════════════════════════════════════════════════════
-
+  // ───── COMPARISON TAB ─────
   const compareConfig = [
     {key:'max_sharpe', label:'Max Sharpe', color:COLORS.gold},
     {key:'max_return', label:'Highest Return', color:COLORS.purple},
     {key:'min_variance', label:'Min Variance', color:COLORS.blue},
     {key:'equal_weight', label:'Equal Weight', color:COLORS.red},
   ];
-  let activeCompare = new Set(['max_sharpe','max_return','equal_weight','min_variance']);
+  const activeCompare = new Set(compareConfig.map(c => c.key));
 
   const toggleWrap = document.getElementById('compare-toggles');
   compareConfig.forEach(c => {
     const btn = document.createElement('button');
     btn.className = 'toggle-btn active';
+    btn.type = 'button';
     btn.textContent = c.label;
     btn.style.borderColor = c.color;
     btn.addEventListener('click', () => {
@@ -1731,127 +1779,93 @@ function renderDashboard(DATA){
   });
 
   let growthChart, ddChart, rollSharpeChart;
-
+  function lineSet(c, field, width){
+    return { label: c.label, data: DATA.series[c.key][field], borderColor: c.color, backgroundColor:'transparent', borderWidth:width, pointRadius:0, tension:0.05, spanGaps:false };
+  }
+  function lineOpts(yTick, tipFmt, maxTicks){
+    return { responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'top', labels:{boxWidth:10,font:{size:11}}}, tooltip:{callbacks:{label:tipFmt}}},
+      scales:{ x:{grid:{display:false}, ticks:{maxTicksLimit:maxTicks,font:{size:9}}}, y:{grid:{color:COLORS.line}, ticks:{callback:yTick,font:{size:9}}} } };
+  }
   function renderCompareCharts(){
     const labels = DATA.series.max_sharpe.dates;
     const active = compareConfig.filter(c => activeCompare.has(c.key));
-
-    const growthDatasets = active.map(c => ({
-      label: c.label, data: DATA.series[c.key].cumulative, borderColor: c.color,
-      backgroundColor:'transparent', borderWidth:1.8, pointRadius:0, tension:0.05
-    }));
-    const ddDatasets = active.map(c => ({
-      label: c.label, data: DATA.series[c.key].drawdown, borderColor: c.color,
-      backgroundColor:'transparent', borderWidth:1.4, pointRadius:0, tension:0.05
-    }));
-    const rollDatasets = active.map(c => ({
-      label: c.label, data: DATA.series[c.key].rolling_sharpe, borderColor: c.color,
-      backgroundColor:'transparent', borderWidth:1.4, pointRadius:0, tension:0.05
-    }));
-
     if (growthChart) growthChart.destroy();
     if (ddChart) ddChart.destroy();
     if (rollSharpeChart) rollSharpeChart.destroy();
-
     growthChart = new Chart(document.getElementById('chart-compare-growth'), {
-      type:'line', data:{labels, datasets:growthDatasets},
-      options:{ responsive:true, maintainAspectRatio:false,
-        plugins:{legend:{position:'top', labels:{boxWidth:10,font:{size:11}}}, tooltip:{callbacks:{label:(c)=>`${c.dataset.label}: $${c.parsed.y.toFixed(2)}`}}},
-        scales:{ x:{grid:{display:false}, ticks:{maxTicksLimit:8,font:{size:9}}}, y:{grid:{color:COLORS.line}, ticks:{callback:v=>'$'+v,font:{size:9}}} }
-      }
+      type:'line', data:{labels, datasets: active.map(c => lineSet(c, 'cumulative', 1.8))},
+      options: lineOpts(v=>'$'+v, (c)=>`${c.dataset.label}: $${c.parsed.y.toFixed(2)}`, 8)
     });
-
     ddChart = new Chart(document.getElementById('chart-compare-drawdown'), {
-      type:'line', data:{labels, datasets:ddDatasets},
-      options:{ responsive:true, maintainAspectRatio:false,
-        plugins:{legend:{position:'top', labels:{boxWidth:10,font:{size:11}}}, tooltip:{callbacks:{label:(c)=>`${c.dataset.label}: ${c.parsed.y.toFixed(1)}%`}}},
-        scales:{ x:{grid:{display:false}, ticks:{maxTicksLimit:6,font:{size:9}}}, y:{grid:{color:COLORS.line}, ticks:{callback:v=>v+'%',font:{size:9}}} }
-      }
+      type:'line', data:{labels, datasets: active.map(c => lineSet(c, 'drawdown', 1.4))},
+      options: lineOpts(v=>v+'%', (c)=>`${c.dataset.label}: ${c.parsed.y.toFixed(1)}%`, 6)
     });
-
     rollSharpeChart = new Chart(document.getElementById('chart-compare-rollsharpe'), {
-      type:'line', data:{labels, datasets:rollDatasets},
-      options:{ responsive:true, maintainAspectRatio:false,
-        plugins:{legend:{position:'top', labels:{boxWidth:10,font:{size:11}}}, tooltip:{callbacks:{label:(c)=>`${c.dataset.label}: ${c.parsed.y.toFixed(2)}`}}},
-        scales:{ x:{grid:{display:false}, ticks:{maxTicksLimit:6,font:{size:9}}}, y:{grid:{color:COLORS.line}, ticks:{font:{size:9}}} }
-      }
+      type:'line', data:{labels, datasets: active.map(c => lineSet(c, 'rolling_sharpe', 1.4))},
+      options: lineOpts(v=>v, (c)=>`${c.dataset.label}: ${c.parsed.y.toFixed(2)}`, 6)
     });
   }
   renderCompareCharts();
 
-  (function(){
-    const tbody = document.querySelector('#compare-table tbody');
-    compareConfig.forEach(c => {
-      const p = DATA.portfolios[c.key];
-      const s = DATA.series[c.key];
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><span class="ticker-dot" style="background:${c.color}"></span>${c.label}</td>
-        <td>${fmtPct(s.total_return)}</td>
-        <td>${fmtPct(p.return)}</td>
-        <td>${fmtPct(p.std)}</td>
-        <td>${fmtNum(p.sharpe)}</td>
-        <td style="color:${COLORS.red}">${fmtPct(s.max_drawdown)}</td>
-        <td>${fmtNum(s.skew)}</td>
-        <td>${fmtNum(s.kurtosis)}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-  })();
+  const cBody = document.querySelector('#compare-table tbody');
+  compareConfig.forEach(c => {
+    const p = P[c.key], s = DATA.series[c.key];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="ticker-dot" style="background:${c.color}"></span>${c.label}</td>
+      <td class="num">${fmtPct(s.total_return)}</td>
+      <td class="num">${fmtPct(p.return)}</td>
+      <td class="num">${fmtPct(p.std)}</td>
+      <td class="num">${fmtNum(p.sharpe)}</td>
+      <td class="num" style="color:${COLORS.red}">${fmtPct(s.max_drawdown)}</td>
+      <td class="num">${fmtNum(s.skew)}</td>
+      <td class="num">${fmtNum(s.kurtosis)}</td>`;
+    cBody.appendChild(tr);
+  });
 
-  const ewSeries = DATA.series.equal_weight, msSeries = DATA.series.max_sharpe, mrCompSeries = DATA.series.max_return;
-  const returnDelta = msSeries.total_return - ewSeries.total_return;
-  const ddImprovement = ewSeries.max_drawdown - msSeries.max_drawdown;
-
-  const msWeights = Object.entries(DATA.portfolios.max_sharpe.weights).sort((a,b)=>b[1]-a[1]);
-  const zeroWeightTickers = msWeights.filter(([,v]) => v < 0.005).map(([t]) => t);
-  const topMsWeights = msWeights.filter(([,v]) => v >= 0.04).map(([t]) => t);
-  const zeroWeightText = zeroWeightTickers.length
-    ? `${zeroWeightTickers.slice(0,7).join(', ')}${zeroWeightTickers.length > 7 ? ', and others' : ''} all received ~0% weight`
-    : `every holding kept some allocation`;
+  const ewS = DATA.series.equal_weight, msS = DATA.series.max_sharpe, mrS = DATA.series.max_return;
+  const returnDelta = msS.total_return - ewS.total_return;
+  const msW = Object.entries(P.max_sharpe.weights).sort((a,b)=>b[1]-a[1]);
+  const floorTickers = msW.filter(([,v]) => v <= 0.0100001).map(([t]) => t);
+  const bigTickers = msW.filter(([,v]) => v >= 0.04).map(([t]) => t).slice(0,4);
+  const floorText = floorTickers.length
+    ? `${floorTickers.slice(0,7).join(', ')}${floorTickers.length > 7 ? ' and others' : ''} were held at the 1% minimum`
+    : `no holding needed to be cut to the 1% minimum`;
+  const mrBeatsMs = mrS.total_return > msS.total_return;
 
   document.getElementById('compare-insight').innerHTML = `
-    Over the sample period, <strong>$100 in the equal-weight portfolio grew to
-    $${(100*(1+ewSeries.total_return)).toFixed(2)}</strong>, while the same $100 in the
-    <span class="accent-text">max-Sharpe optimized portfolio grew to $${(100*(1+msSeries.total_return)).toFixed(2)}</span>
-    &mdash; a difference of <strong>${returnDelta >= 0 ? '+' : ''}${fmtPct(returnDelta)}</strong> in cumulative terms.
-    The optimized portfolio's max drawdown was <strong>${fmtPct(msSeries.max_drawdown)}</strong> versus
-    <strong>${fmtPct(ewSeries.max_drawdown)}</strong> for equal weight
-    (${ddImprovement >= 0 ? 'a smaller peak-to-trough loss' : 'a larger peak-to-trough loss'}).
-    The gap comes largely from <strong>concentration</strong>: optimization shifted capital away from low-Sharpe names
-    (${zeroWeightText}) and into the strongest risk-adjusted performers (${topMsWeights.slice(0,4).join(', ')}).
+    Over the sample period, <strong>$100 in the equal-weight portfolio grew to $${(100*(1+ewS.total_return)).toFixed(2)}</strong>,
+    while the same $100 in the <span style="color:${COLORS.gold}; font-weight:600;">max-Sharpe portfolio grew to $${(100*(1+msS.total_return)).toFixed(2)}</span>,
+    a difference of <strong>${returnDelta >= 0 ? '+' : ''}${fmtPct(returnDelta)}</strong> in cumulative terms.
+    Its max drawdown was <strong>${fmtPct(msS.max_drawdown)}</strong> against <strong>${fmtPct(ewS.max_drawdown)}</strong> for equal weight
+    (${msS.max_drawdown >= ewS.max_drawdown ? 'a smaller' : 'a larger'} peak-to-trough loss).
+    Most of the gap comes from <strong>concentration</strong>: the optimiser moved capital away from weaker risk-adjusted names
+    (${floorText}) and into the strongest ones${bigTickers.length ? ` (${bigTickers.join(', ')})` : ''}.
     <br><br>
-    The <span style="color:${COLORS.purple}; font-weight:600;">Highest Return</span> portfolio went further still
-    &mdash; $100 grew to <strong>$${(100*(1+mrCompSeries.total_return)).toFixed(2)}</strong>, by concentrating as
-    heavily as the 1%-per-holding floor allowed in whichever names actually performed best in hindsight. This is the
-    central trade-off across all three: max Sharpe balances return against volatility using only information available
-    in advance, the highest-return portfolio is fit directly to what happened and will usually look best in a backtest,
-    and historical optimization of any kind can overfit to the specific sample period &mdash; none of these portfolios
-    are guaranteed to repeat their ranking out of sample.
+    The <span style="color:${COLORS.purple}; font-weight:600;">Highest Return</span> portfolio
+    ${mrBeatsMs ? 'went further still' : 'finished'} at <strong>$${(100*(1+mrS.total_return)).toFixed(2)}</strong>, concentrating as heavily
+    as the 1% minimum allows in the names that actually performed best. Max Sharpe balances return against volatility using
+    averages, while Highest Return is fitted to what happened and will usually look best in a backtest. Any optimisation on
+    past prices can overfit the sample period, so none of these rankings is guaranteed to hold going forward.
   `;
 
-  // ═══════════════════════════════════════════════════════════
-  // CORRELATION TAB
-  // ═══════════════════════════════════════════════════════════
-
+  // ───── CORRELATION TAB ─────
   (function(){
-    const tickers = DATA.correlation.tickers;
+    const tk = DATA.correlation.tickers;
     const matrix = DATA.correlation.matrix;
-    const n = tickers.length;
+    const n = tk.length;
     const cellSize = Math.max(34, Math.min(46, 760/n));
-
     let html = `<div style="display:grid; grid-template-columns: 60px repeat(${n}, ${cellSize}px); gap:2px; font-family:var(--mono); font-size:9.5px;">`;
     html += `<div></div>`;
-    tickers.forEach(t => html += `<div style="writing-mode:vertical-rl; transform:rotate(180deg); text-align:left; color:${COLORS.dim}; padding-bottom:4px;">${t}</div>`);
-
-    tickers.forEach((rowT, i) => {
+    tk.forEach(t => html += `<div style="writing-mode:vertical-rl; transform:rotate(180deg); text-align:left; color:${COLORS.dim}; padding-bottom:4px;">${t}</div>`);
+    tk.forEach((rowT, i) => {
       html += `<div style="display:flex; align-items:center; color:${COLORS.dim}; padding-right:4px; justify-content:flex-end;">${rowT}</div>`;
-      tickers.forEach((colT, j) => {
+      tk.forEach((colT, j) => {
         const v = matrix[i][j];
-        const t = (v+1)/2; // 0..1
         let r,g,b;
-        if (v >= 0) { r = Math.round(16 + t*8); g = Math.round(60+ (v)*157); b = Math.round(80 + (v)*100); }
-        else { r = Math.round(200* -v + 16); g = Math.round(40); b = Math.round(50); }
+        if (v >= 0) { r = Math.round(16 + (v+1)/2*8); g = Math.round(60 + v*157); b = Math.round(80 + v*100); }
+        else { r = Math.round(200 * -v + 16); g = 40; b = 50; }
         const bg = i===j ? '#1f2937' : `rgba(${r},${g},${b},${0.25+Math.abs(v)*0.55})`;
         html += `<div title="${rowT}-${colT}: ${v.toFixed(2)}" style="height:${cellSize}px; display:flex; align-items:center; justify-content:center; background:${bg}; border-radius:2px; color:${Math.abs(v)>0.5?'#fff':COLORS.dim};">${v.toFixed(2)}</div>`;
       });
@@ -1859,24 +1873,20 @@ function renderDashboard(DATA){
     html += `</div>`;
     document.getElementById('corr-heatmap').innerHTML = html;
 
-    let pairs = [];
-    for(let i=0;i<n;i++) for(let j=i+1;j<n;j++) pairs.push([tickers[i], tickers[j], matrix[i][j]]);
+    const pairs = [];
+    for (let i=0;i<n;i++) for (let j=i+1;j<n;j++) pairs.push([tk[i], tk[j], matrix[i][j]]);
     pairs.sort((a,b)=>b[2]-a[2]);
     const highest = pairs[0], lowest = pairs[pairs.length-1];
     const avgCorr = pairs.reduce((s,p)=>s+p[2],0)/pairs.length;
-
     document.getElementById('corr-insight').innerHTML = `
-      Average pairwise correlation across the ${DATA.tickers.length} holdings is <strong>${avgCorr.toFixed(2)}</strong>.
+      Average pairwise correlation across the ${n} holdings is <strong>${avgCorr.toFixed(2)}</strong>.
       The most correlated pair is <strong>${highest[0]} &amp; ${highest[1]}</strong> (${highest[2].toFixed(2)}),
       while <strong>${lowest[0]} &amp; ${lowest[1]}</strong> are the most diversifying pair (${lowest[2].toFixed(2)}).
-      Lower average correlation means more diversification benefit &mdash; it's part of why the optimizer can build a
-      portfolio with better risk-adjusted return than simply holding everything equally: it leans into combinations of
-      assets that don't move together, reducing portfolio variance below what any single holding offers on its own.
+      Lower correlation means more diversification benefit. It is part of why the optimiser can beat simply holding everything
+      equally: it leans into combinations that don't move together, which brings portfolio risk below what any single holding offers.
     `;
   })();
-
 }
-
 </script>
 </body>
 </html>
