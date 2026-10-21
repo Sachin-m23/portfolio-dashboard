@@ -856,11 +856,11 @@ footer{
       <div class="panel-title">Suggested Diversifiers <span class="panel-note">Ranked by correlation to your holdings held equally</span></div>
       <div class="insight">
         Checks <strong id="div-universe-count">—</strong> ETFs that have tended to move differently from stocks (Treasuries, gold, currencies,
-        managed futures, defensive sectors and outright hedges) against your holdings over the same sample period. Truly negative
+        managed futures, defensive sectors, volatility and tail-risk hedges) against your holdings over the same sample period. Truly negative
         correlation to a stock portfolio is rare, so the list shows everything ranked from most to least diversifying. Add any of them
         to preview the correlation matrix, then re-optimise to see the effect on the weights.
         <br><br>
-        Correlations shift over time (stocks and Treasuries fell together through much of 2022), and inverse and volatility funds
+        Correlations shift over time (stocks and Treasuries fell together through much of 2022), and volatility and tail-risk funds
         lose value steadily in rising markets, so treat these as ideas to test rather than recommendations.
       </div>
       <div class="div-controls">
@@ -2217,8 +2217,6 @@ const DIVERSIFIER_UNIVERSE = [
   {t:'XLE',  type:'Sector',          name:'Energy'},
   {t:'XLU',  type:'Sector',          name:'Utilities'},
   {t:'XLP',  type:'Sector',          name:'Consumer staples'},
-  {t:'SH',   type:'Hedge',           name:'Inverse S&P 500 (−1×)', decays:true},
-  {t:'PSQ',  type:'Hedge',           name:'Inverse Nasdaq-100 (−1×)', decays:true},
   {t:'VIXY', type:'Hedge',           name:'VIX short-term futures', decays:true},
   {t:'TAIL', type:'Hedge',           name:'Tail-risk (put options)', decays:true},
 ];
@@ -2238,7 +2236,7 @@ function divSetStatus(msg, isError) {
   divStatus.className = 'div-status' + (isError ? ' error' : '');
 }
 function fmtCorr(c) { return (c < 0 ? '−' : '+') + Math.abs(c).toFixed(2); }
-function corrClass(c) { return c <= -0.2 ? 'up' : c >= 0.4 ? 'down' : 'neutral'; }
+function corrClass(c) { return c < 0 ? 'down' : 'neutral'; }
 function annStats(r) {
   const T = r.length, m = sumArr(r) / T;
   const sd = Math.sqrt(r.reduce((a,b) => a + (b-m)*(b-m), 0) / (T - 1));
@@ -2449,7 +2447,7 @@ function renderSuggestions() {
       <td>${type}</td>
       <td class="num"><span class="delta ${corrClass(r.corrPort)}">${fmtCorr(r.corrPort)}</span></td>
       <td class="num">${fmtCorr(r.avg)}</td>
-      <td class="div-pair">${r.lowest[0]} <span style="color:${r.lowest[1] < 0 ? COLORS.green : COLORS.dim}">${fmtCorr(r.lowest[1])}</span></td>
+      <td class="div-pair">${r.lowest[0]} <span style="color:${r.lowest[1] < 0 ? COLORS.red : COLORS.dim}">${fmtCorr(r.lowest[1])}</span></td>
       <td class="num" style="color:${r.ret < 0 ? COLORS.red : COLORS.dim}">${fmtPct(r.ret)}</td>
       <td class="num">${fmtPct(r.vol)}</td>
       <td class="num"></td>`;
