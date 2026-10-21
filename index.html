@@ -412,6 +412,14 @@ table.weights-table td.cap{color:var(--gold);}
 }
 .div-test input::placeholder{text-transform:none; color:var(--text-faint);}
 .div-test .small-btn{padding:4px 12px;}
+.div-controls select{
+  background:var(--bg-panel-2); border:1px solid var(--line); color:var(--text);
+  border-radius:5px; padding:8px 10px; font-family:var(--mono); font-size:12px; max-width:100%;
+}
+.div-controls select:disabled{opacity:0.5;}
+.div-btn.stop{background:var(--bg-panel-2); color:var(--red); border:1px solid rgba(232,88,74,0.5);}
+.div-scan-note{font-family:var(--mono); font-size:10.5px; color:var(--text-faint); margin-top:8px; line-height:1.6;}
+.div-more{margin-top:12px;}
 .div-status{font-family:var(--mono); font-size:11.5px; color:var(--text-dim); min-height:18px; margin:8px 0 12px; line-height:1.6;}
 .div-status.error{color:var(--red);}
 .div-tk{color:var(--text); font-weight:600;}
@@ -855,29 +863,33 @@ footer{
     <div class="panel" style="margin-top:20px;">
       <div class="panel-title">Suggested Diversifiers <span class="panel-note">Ranked by correlation to your holdings held equally</span></div>
       <div class="insight">
-        Checks <strong id="div-universe-count">—</strong> ETFs that have tended to move differently from stocks (Treasuries, gold, currencies,
-        managed futures, defensive sectors, volatility and tail-risk hedges) against your holdings over the same sample period. Truly negative
-        correlation to a stock portfolio is rare, so the list shows everything ranked from most to least diversifying. Add any of them
-        to preview the correlation matrix, then re-optimise to see the effect on the weights.
+        Scans stocks across every sector against your holdings over the same sample period and ranks them from most to least
+        diversifying. Each stock needs its own price history, so a scan uses one FMP request per ticker: pick a single sector to keep it
+        small, or scan all sectors and press Stop once you've seen enough. Results build up across scans. Add any of them to preview the
+        correlation matrix, then re-optimise to see the effect on the weights.
         <br><br>
-        Correlations shift over time (stocks and Treasuries fell together through much of 2022), and volatility and tail-risk funds
-        lose value steadily in rising markets, so treat these as ideas to test rather than recommendations.
+        Individual stocks that move against a stock portfolio are rare; expect the best results to be low positive correlations,
+        mostly from utilities, consumer staples, healthcare and gold miners. Correlations also shift over time, so treat these as
+        ideas to test rather than recommendations.
       </div>
       <div class="div-controls">
-        <button class="div-btn" id="div-find-btn" type="button">Find diversifiers</button>
+        <select id="div-scope" aria-label="Which stocks to scan"></select>
+        <button class="div-btn" id="div-find-btn" type="button">Scan</button>
         <div class="div-test">
           <input id="div-input" type="text" autocomplete="off" spellcheck="false" placeholder="Test any ticker" aria-label="Ticker to test">
           <button class="small-btn" id="div-test-btn" type="button">Test</button>
         </div>
       </div>
+      <div class="div-scan-note" id="div-scan-note"></div>
       <div class="div-status" id="div-status" role="status" aria-live="polite"></div>
       <div class="corr-preview" id="div-summary" hidden></div>
       <div class="table-scroll" id="div-table-wrap" hidden>
         <table class="weights-table div-table" id="div-table">
-          <thead><tr><th>Ticker</th><th>Type</th><th class="num">Corr. to portfolio</th><th class="num">Avg corr. to holdings</th><th>Most negative with</th><th class="num">Ann. return</th><th class="num">Volatility</th><th></th></tr></thead>
+          <thead><tr><th>Ticker</th><th>Sector</th><th class="num">Corr. to portfolio</th><th class="num">Avg corr. to holdings</th><th>Most negative with</th><th class="num">Ann. return</th><th class="num">Volatility</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
+      <button class="link-btn div-more" id="div-more" type="button" hidden></button>
     </div>
   </section>
 
@@ -2200,7 +2212,52 @@ function renderDashboard(DATA){
 // CORRELATION MATRIX + DIVERSIFIER SUGGESTIONS
 // ═══════════════════════════════════════════════════════════
 
-/** ETFs that have historically had low or negative correlation with stock portfolios. */
+/**
+ * Stocks to scan. The full S&P 500 list is requested from FMP once per session;
+ * if the plan doesn't include it, this built-in set of large caps (all 11 sectors,
+ * FMP sector names) is used instead.
+ */
+const STOCK_FALLBACK = {
+  'Technology':             'AAPL MSFT NVDA AVGO ORCL CRM ADBE AMD CSCO ACN IBM INTU TXN QCOM NOW AMAT MU LRCX KLAC ADI PANW SNPS CDNS',
+  'Communication Services': 'GOOGL META NFLX DIS TMUS VZ T CMCSA CHTR EA TTWO',
+  'Consumer Cyclical':      'AMZN TSLA HD MCD LOW NKE SBUX BKNG TJX ORLY AZO CMG MAR GM F ROST',
+  'Consumer Defensive':     'WMT PG KO PEP COST PM MO MDLZ CL KMB GIS KHC HSY KR SYY STZ CHD CLX CAG CPB SJM HRL MKC KDP TSN',
+  'Healthcare':             'LLY UNH JNJ ABBV MRK TMO ABT PFE DHR AMGN BMY GILD CVS CI ELV MDT ISRG VRTX REGN ZTS BDX HUM MCK COR CAH',
+  'Financial Services':     'BRK-B JPM V MA BAC WFC GS MS SCHW BLK AXP C SPGI CB MMC PGR TRV AIG MET ALL CME ICE',
+  'Industrials':            'GE CAT RTX HON UNP UPS BA DE LMT GD NOC ETN ITW WM RSG MMM FDX CSX NSC',
+  'Energy':                 'XOM CVX COP EOG SLB PSX MPC VLO OXY KMI WMB OKE HAL DVN FANG',
+  'Utilities':              'NEE SO DUK AEP SRE D EXC XEL ED PEG WEC EIX DTE ES AEE CMS ETR PPL',
+  'Real Estate':            'PLD AMT EQIX CCI PSA O SPG WELL DLR VICI EXR AVB EQR',
+  'Basic Materials':        'LIN SHW APD ECL NEM FCX DD DOW NUE PPG VMC MLM CTVA IFF ALB',
+};
+const UNIVERSE = {
+  stocks: Object.entries(STOCK_FALLBACK).flatMap(([type, s]) => s.split(' ').map(t => ({ t, type, name:'' }))),
+  source: 'builtin',
+  tried: false,
+};
+
+/** One request per session for the full S&P 500 list; silently keeps the built-in list if unavailable. */
+async function loadSp500(apiKey) {
+  if (UNIVERSE.tried) return false;
+  UNIVERSE.tried = true;
+  try {
+    const res = await fetch(`${FMP_BASE}/stable/sp500-constituent?apikey=${encodeURIComponent(apiKey)}`);
+    const body = JSON.parse(await res.text());
+    if (!Array.isArray(body)) return false;
+    const seen = new Set();
+    const list = body.filter(r => r && r.symbol).map(r => ({
+      t: String(r.symbol).toUpperCase().replace(/\.(?=[A-Z]$)/, '-'),
+      type: r.sector || 'Other',
+      name: String(r.name || '').replace(/[<>&"]/g, ''),
+    })).filter(c => TICKER_RE.test(c.t) && !seen.has(c.t) && seen.add(c.t));
+    if (list.length < 300) return false;
+    UNIVERSE.stocks = list;
+    UNIVERSE.source = 'fmp';
+    return true;
+  } catch { return false; }
+}
+
+/** Optional: ETFs that have historically had low or negative correlation with stock portfolios. */
 const DIVERSIFIER_UNIVERSE = [
   {t:'TLT',  type:'Bonds',           name:'20+ yr US Treasuries'},
   {t:'IEF',  type:'Bonds',           name:'7–10 yr US Treasuries'},
@@ -2222,14 +2279,56 @@ const DIVERSIFIER_UNIVERSE = [
 ];
 const DECAY_NOTE = 'Built to rise when stocks fall, so it tends to lose value steadily while markets rise. Usually held small and short-term.';
 
-const DIV = { runId:0, data:null, cols:{}, port:[], dates:[], apiKey:'', results:[], adds:[], loading:false };
+const DIV = { runId:0, data:null, cols:{}, port:[], dates:[], apiKey:'', results:[], adds:[], failed:new Map(), loading:false, stop:false, showAll:false };
 const candidateCache = new Map();
+const SHOW_TOP = 25;
 
 const divFindBtn = document.getElementById('div-find-btn');
 const divStatus = document.getElementById('div-status');
 const divInput = document.getElementById('div-input');
 const divTestBtn = document.getElementById('div-test-btn');
-document.getElementById('div-universe-count').textContent = DIVERSIFIER_UNIVERSE.length;
+const divScope = document.getElementById('div-scope');
+const divScanNote = document.getElementById('div-scan-note');
+const divMore = document.getElementById('div-more');
+
+function sectorsOf() {
+  const by = {};
+  UNIVERSE.stocks.forEach(c => { (by[c.type] = by[c.type] || []).push(c); });
+  return by;
+}
+/** All sectors, interleaved so a scan stopped early still covers every sector. */
+function roundRobin(by) {
+  const lists = Object.keys(by).sort().map(k => by[k].slice());
+  const out = [];
+  while (lists.some(l => l.length)) lists.forEach(l => { if (l.length) out.push(l.shift()); });
+  return out;
+}
+function scopeList(v) {
+  if (v === 'etf') return DIVERSIFIER_UNIVERSE;
+  const by = sectorsOf();
+  return v === 'all' ? roundRobin(by) : (by[v] || []);
+}
+function pendingIn(list) {
+  return list.filter(c => !(DIV.data && DIV.data.tickers.includes(c.t)) && !DIV.results.some(r => r.t === c.t) && !DIV.failed.has(c.t));
+}
+function buildScopeOptions() {
+  const prev = divScope.value;
+  const by = sectorsOf();
+  const opts = [['all', `All sectors (${UNIVERSE.stocks.length} stocks)`]]
+    .concat(Object.keys(by).sort().map(k => [k, `${k} (${by[k].length})`]))
+    .concat([['etf', `Diversifying ETFs (${DIVERSIFIER_UNIVERSE.length})`]]);
+  divScope.innerHTML = '';
+  opts.forEach(([v, label]) => { const o = document.createElement('option'); o.value = v; o.textContent = label; divScope.appendChild(o); });
+  if (opts.some(o => o[0] === prev)) divScope.value = prev;
+  updateScanNote();
+}
+function updateScanNote() {
+  const left = pendingIn(scopeList(divScope.value)).length;
+  const src = UNIVERSE.source === 'fmp' ? 'Stock list: S&P 500 constituents from FMP.' : `Stock list: ${UNIVERSE.stocks.length} large caps across all sectors (built in).`;
+  divScanNote.textContent = (left ? `${left} left to check here, one FMP request each. ` : 'Everything in this group has been checked. ') + src;
+}
+divScope.addEventListener('change', updateScanNote);
+buildScopeOptions();
 
 function divSetStatus(msg, isError) {
   divStatus.textContent = msg || '';
@@ -2269,14 +2368,22 @@ function initDiversifiers(DATA) {
   DIV.port = returns.map(r => sumArr(r) / n);
   DIV.results = [];
   DIV.adds = [];
+  DIV.failed = new Map();
   DIV.loading = false;
+  DIV.stop = false;
+  DIV.showAll = false;
   divFindBtn.disabled = false;
-  divFindBtn.textContent = 'Find diversifiers';
+  divFindBtn.textContent = 'Scan';
+  divFindBtn.classList.remove('stop');
+  divScope.disabled = false;
   divTestBtn.disabled = false;
   divInput.value = '';
   divSetStatus('');
+  buildScopeOptions();
   renderSuggestions();
   renderCorrelation();
+  const runId = DIV.runId;
+  loadSp500(DIV.apiKey).then(ok => { if (ok && runId === DIV.runId && !DIV.loading) buildScopeOptions(); });
 }
 
 /** Fetches a candidate over the sample window and lines it up with the holdings' dates. */
@@ -2319,21 +2426,37 @@ function evaluateCandidate(t, r, meta) {
 }
 
 async function findDiversifiers() {
-  if (DIV.loading || !DIV.data) return;
+  if (!DIV.data) return;
+  if (DIV.loading) {
+    DIV.stop = true;
+    divFindBtn.disabled = true;
+    divFindBtn.textContent = 'Stopping...';
+    return;
+  }
   const runId = DIV.runId;
-  const held = DIVERSIFIER_UNIVERSE.filter(c => DIV.data.tickers.includes(c.t)).map(c => c.t);
-  const queue = DIVERSIFIER_UNIVERSE.filter(c => !held.includes(c.t) && !DIV.results.some(r => r.t === c.t));
+  const scope = divScope.value;
+  const list = scopeList(scope);
+  const label = scope === 'etf' ? 'ETFs' : 'stocks';
+  const heldCount = list.filter(c => DIV.data.tickers.includes(c.t)).length;
+  const queue = pendingIn(list);
   const total = queue.length;
-  if (!total) { divSetStatus('Every suggested ETF has already been checked.'); return; }
+  if (!total) { divSetStatus('Everything in this group has already been checked.'); return; }
+
   DIV.loading = true;
-  divFindBtn.disabled = true;
-  divFindBtn.textContent = 'Checking...';
-  const failed = [];
+  DIV.stop = false;
+  divFindBtn.textContent = 'Stop';
+  divFindBtn.classList.add('stop');
+  divScope.disabled = true;
+  const failedNow = [];
   let done = 0, fatal = null;
-  divSetStatus(`Checking 0 of ${total} ETFs against your holdings...`);
+  const progress = () => {
+    const neg = DIV.results.filter(r => r.corrPort < 0).length;
+    divSetStatus(`Scanning ${done} of ${total} ${label}... ${neg} negatively correlated so far.`);
+  };
+  progress();
 
   async function worker() {
-    while (queue.length && !fatal) {
+    while (queue.length && !fatal && !DIV.stop) {
       const c = queue.shift();
       try {
         const r = await loadCandidateReturns(c.t);
@@ -2341,32 +2464,34 @@ async function findDiversifiers() {
         DIV.results.push(evaluateCandidate(c.t, r, c));
       } catch (e) {
         if (e instanceof FatalFetchError) { fatal = e; return; }
-        failed.push(`${c.t} (${e.message})`);
+        if (runId !== DIV.runId) return;
+        DIV.failed.set(c.t, e.message);
+        failedNow.push(c.t);
       }
       if (runId !== DIV.runId) return;
       done++;
-      divSetStatus(`Checking ${done} of ${total} ETFs against your holdings...`);
+      progress();
       renderSuggestions();
     }
   }
-  await Promise.all(Array.from({ length: Math.min(4, total) }, worker));
+  await Promise.all(Array.from({ length: Math.min(5, total) }, worker));
   if (runId !== DIV.runId) return;
 
+  const stopped = DIV.stop;
   DIV.loading = false;
+  DIV.stop = false;
+  divFindBtn.disabled = false;
+  divFindBtn.textContent = 'Scan';
+  divFindBtn.classList.remove('stop');
+  divScope.disabled = false;
+  buildScopeOptions();
   renderSuggestions();
-  if (fatal) {
-    divFindBtn.disabled = false;
-    divFindBtn.textContent = 'Retry';
-    divSetStatus(fatal.message, true);
-    return;
-  }
-  const remaining = DIVERSIFIER_UNIVERSE.filter(c => !held.includes(c.t) && !DIV.results.some(r => r.t === c.t)).length;
-  divFindBtn.disabled = remaining === 0;
-  divFindBtn.textContent = remaining === 0 ? 'Search complete' : 'Retry missing';
-  const negatives = DIV.results.filter(r => r.corrPort < 0).length;
-  const parts = [`Checked ${DIV.results.length} ETF${DIV.results.length === 1 ? '' : 's'}; ${negatives} moved against your portfolio over this period.`];
-  if (held.length) parts.push(`Skipped ${held.join(', ')} (already held).`);
-  if (failed.length) parts.push(`No usable data for ${failed.join('; ')}.`);
+  if (fatal) { divSetStatus(`${fatal.message} Results so far are kept.`, true); return; }
+
+  const neg = DIV.results.filter(r => r.corrPort < 0).length;
+  const parts = [`${stopped ? 'Stopped after' : 'Checked'} ${done} ${label}. ${neg} of the ${DIV.results.length} checked so far moved against your portfolio.`];
+  if (heldCount) parts.push(`Skipped ${heldCount} already in your portfolio.`);
+  if (failedNow.length) parts.push(`No usable data for ${failedNow.length}: ${failedNow.slice(0, 8).join(', ')}${failedNow.length > 8 ? ' and others' : ''}.`);
   divSetStatus(parts.join(' '));
 }
 
@@ -2383,11 +2508,12 @@ async function testCustomTicker() {
   try {
     const r = await loadCandidateReturns(sym);
     if (runId !== DIV.runId) return;
-    const meta = DIVERSIFIER_UNIVERSE.find(c => c.t === sym) || { type:'Your pick', name:'' };
+    const meta = UNIVERSE.stocks.find(c => c.t === sym) || DIVERSIFIER_UNIVERSE.find(c => c.t === sym) || { type:'Your pick', name:'' };
     const res = evaluateCandidate(sym, r, meta);
     DIV.results.push(res);
     divInput.value = '';
     renderSuggestions();
+    updateScanNote();
     divSetStatus(`${sym}: correlation ${fmtCorr(res.corrPort)} to your portfolio, ${fmtCorr(res.avg)} on average to each holding.`);
   } catch (e) {
     if (runId !== DIV.runId) return;
@@ -2435,7 +2561,11 @@ function renderSuggestions() {
   wrap.hidden = DIV.results.length === 0;
   if (!DIV.data) return;
   const full = DIV.data.tickers.length + DIV.adds.length >= MAX_HOLDINGS;
-  DIV.results.slice().sort((a,b) => a.corrPort - b.corrPort).forEach(r => {
+  const sorted = DIV.results.slice().sort((a,b) => a.corrPort - b.corrPort);
+  const shown = DIV.showAll ? sorted : sorted.slice(0, SHOW_TOP);
+  divMore.hidden = sorted.length <= SHOW_TOP;
+  divMore.textContent = DIV.showAll ? `Show top ${SHOW_TOP} only` : `Show all ${sorted.length}`;
+  shown.forEach(r => {
     const added = DIV.adds.includes(r.t);
     const tr = document.createElement('tr');
     if (added) tr.className = 'div-added';
@@ -2581,6 +2711,7 @@ function onPreviewClick(e) {
 document.getElementById('corr-preview').addEventListener('click', onPreviewClick);
 document.getElementById('div-summary').addEventListener('click', onPreviewClick);
 divFindBtn.addEventListener('click', findDiversifiers);
+divMore.addEventListener('click', () => { DIV.showAll = !DIV.showAll; renderSuggestions(); });
 divTestBtn.addEventListener('click', testCustomTicker);
 divInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); testCustomTicker(); } });
 </script>
