@@ -358,6 +358,7 @@ table.weights-table td.floor{color:var(--text-faint);}
 .delta.up{color:var(--green); background:rgba(62,207,142,0.12);}
 .delta.down{color:var(--red); background:rgba(232,88,74,0.12);}
 .delta.neutral{color:var(--text-dim); background:var(--line);}
+.delta.pos{color:var(--accent); background:rgba(74,217,196,0.12);}
 .panel-note{font-size:10px; letter-spacing:0.04em; text-transform:none; color:var(--text-faint);}
 .panel-note b{color:var(--text); font-weight:700;}
 table.perf-table td{color:var(--text-dim); padding-top:10px; padding-bottom:10px;}
@@ -420,6 +421,23 @@ table.weights-table td.cap{color:var(--gold);}
 .div-btn.stop{background:var(--bg-panel-2); color:var(--red); border:1px solid rgba(232,88,74,0.5);}
 .div-scan-note{font-family:var(--mono); font-size:10.5px; color:var(--text-faint); margin-top:8px; line-height:1.6;}
 .div-more{margin-top:12px;}
+.div-rank{
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; margin:14px 0 2px;
+  font-family:var(--mono); font-size:11.5px; color:var(--text-dim);
+}
+.div-rank select{
+  background:var(--bg-panel-2); border:1px solid var(--line); color:var(--text);
+  border-radius:5px; padding:6px 8px; font-family:var(--mono); font-size:12px; max-width:100%;
+}
+.seg{display:inline-flex; border:1px solid var(--line); border-radius:5px; overflow:hidden;}
+.seg button{
+  font-family:var(--mono); font-size:11.5px; padding:6px 12px; border:none; cursor:pointer;
+  background:var(--bg-panel-2); color:var(--text-dim);
+}
+.seg button + button{border-left:1px solid var(--line);}
+.seg button[aria-pressed="true"].neg{color:var(--red); background:rgba(232,88,74,0.12);}
+.seg button[aria-pressed="true"].pos{color:var(--accent); background:rgba(74,217,196,0.12);}
+table.div-table th.rank-col{color:var(--text-dim);}
 .div-status{font-family:var(--mono); font-size:11.5px; color:var(--text-dim); min-height:18px; margin:8px 0 12px; line-height:1.6;}
 .div-status.error{color:var(--red);}
 .div-tk{color:var(--text); font-weight:600;}
@@ -861,12 +879,15 @@ footer{
     </div>
 
     <div class="panel" style="margin-top:20px;">
-      <div class="panel-title">Suggested Diversifiers <span class="panel-note">Ranked by correlation to your holdings held equally</span></div>
+      <div class="panel-title"><span id="div-title">Suggested Diversifiers</span> <span class="panel-note" id="div-title-note">Ranked by correlation to your holdings held equally</span></div>
       <div class="insight">
         Scans stocks across every sector against your holdings over the same sample period and ranks them from most to least
         diversifying. Each stock needs its own price history, so a scan uses one FMP request per ticker: pick a single sector to keep it
         small, or scan all sectors and press Stop once you've seen enough. Results build up across scans. Add any of them to preview the
         correlation matrix, then re-optimise to see the effect on the weights.
+        <br><br>
+        You can rank results by the most negative or the most positive correlation, either against the whole portfolio or against
+        one holding. Changing the ranking re-sorts the stocks already scanned, with no extra requests.
         <br><br>
         Individual stocks that move against a stock portfolio are rare; expect the best results to be low positive correlations,
         mostly from utilities, consumer staples, healthcare and gold miners. Correlations also shift over time, so treat these as
@@ -880,12 +901,21 @@ footer{
           <button class="small-btn" id="div-test-btn" type="button">Test</button>
         </div>
       </div>
+      <div class="div-rank" role="group" aria-label="How to rank results">
+        <span>Show</span>
+        <div class="seg">
+          <button type="button" class="neg" data-dir="neg" aria-pressed="true">Most negative</button>
+          <button type="button" class="pos" data-dir="pos" aria-pressed="false">Most positive</button>
+        </div>
+        <span>correlation with</span>
+        <select id="div-target" aria-label="Compare against"></select>
+      </div>
       <div class="div-scan-note" id="div-scan-note"></div>
       <div class="div-status" id="div-status" role="status" aria-live="polite"></div>
       <div class="corr-preview" id="div-summary" hidden></div>
       <div class="table-scroll" id="div-table-wrap" hidden>
         <table class="weights-table div-table" id="div-table">
-          <thead><tr><th>Ticker</th><th>Sector</th><th class="num">Corr. to portfolio</th><th class="num">Avg corr. to holdings</th><th>Most negative with</th><th class="num">Ann. return</th><th class="num">Volatility</th><th></th></tr></thead>
+          <thead id="div-thead"></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -2335,7 +2365,31 @@ function divSetStatus(msg, isError) {
   divStatus.className = 'div-status' + (isError ? ' error' : '');
 }
 function fmtCorr(c) { return (c < 0 ? '−' : '+') + Math.abs(c).toFixed(2); }
-function corrClass(c) { return c < 0 ? 'down' : 'neutral'; }
+function corrClass(c) { return c < 0 ? 'down' : c >= 0.5 ? 'pos' : 'neutral'; }
+
+// ───── Ranking: direction (most negative / most positive) and what to compare against ─────
+const RANK = { dir: 'neg', target: 'port' };
+const divTarget = document.getElementById('div-target');
+const segBtns = document.querySelectorAll('.div-rank .seg button');
+const rankValue = r => RANK.target === 'port' ? r.corrPort : r.byHolding[RANK.target];
+const targetLabel = () => RANK.target === 'port' ? 'portfolio' : RANK.target;
+
+function buildTargetOptions() {
+  const held = DIV.data ? DIV.data.tickers : [];
+  if (RANK.target !== 'port' && !held.includes(RANK.target)) RANK.target = 'port';
+  divTarget.innerHTML = '';
+  [['port', 'Whole portfolio']].concat(held.slice().sort().map(t => [t, t])).forEach(([v, label]) => {
+    const o = document.createElement('option'); o.value = v; o.textContent = label; divTarget.appendChild(o);
+  });
+  divTarget.value = RANK.target;
+}
+function setDirection(dir) {
+  RANK.dir = dir;
+  segBtns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.dir === dir)));
+  renderSuggestions();
+}
+segBtns.forEach(b => b.addEventListener('click', () => setDirection(b.dataset.dir)));
+divTarget.addEventListener('change', () => { RANK.target = divTarget.value; renderSuggestions(); });
 function annStats(r) {
   const T = r.length, m = sumArr(r) / T;
   const sd = Math.sqrt(r.reduce((a,b) => a + (b-m)*(b-m), 0) / (T - 1));
@@ -2372,6 +2426,7 @@ function initDiversifiers(DATA) {
   DIV.loading = false;
   DIV.stop = false;
   DIV.showAll = false;
+  buildTargetOptions();
   divFindBtn.disabled = false;
   divFindBtn.textContent = 'Scan';
   divFindBtn.classList.remove('stop');
@@ -2415,12 +2470,16 @@ async function loadCandidateReturns(symbol) {
 
 function evaluateCandidate(t, r, meta) {
   const per = DIV.data.tickers.map(h => [h, betaAndCorr(r, DIV.cols[h]).corr]).sort((a,b) => a[1] - b[1]);
+  const byHolding = {};
+  per.forEach(([h, c]) => { byHolding[h] = c; });
   const s = annStats(r);
   return {
     t, meta, returns: r,
     corrPort: betaAndCorr(r, DIV.port).corr,
+    byHolding,
     avg: sumArr(per.map(p => p[1])) / per.length,
     lowest: per[0],
+    highest: per[per.length - 1],
     ret: s.ret, vol: s.vol,
   };
 }
@@ -2561,7 +2620,20 @@ function renderSuggestions() {
   wrap.hidden = DIV.results.length === 0;
   if (!DIV.data) return;
   const full = DIV.data.tickers.length + DIV.adds.length >= MAX_HOLDINGS;
-  const sorted = DIV.results.slice().sort((a,b) => a.corrPort - b.corrPort);
+  const neg = RANK.dir === 'neg';
+  const byPort = RANK.target === 'port';
+
+  document.getElementById('div-title').textContent = neg ? 'Suggested Diversifiers' : 'Most Correlated Stocks';
+  document.getElementById('div-title-note').textContent = byPort
+    ? `Ranked by ${neg ? 'lowest' : 'highest'} correlation to your holdings held equally`
+    : `Ranked by ${neg ? 'lowest' : 'highest'} correlation to ${RANK.target}`;
+  document.getElementById('div-thead').innerHTML = `<tr><th>Ticker</th><th>Sector</th>
+    <th class="num rank-col">Corr. to ${targetLabel()} ${neg ? '↑' : '↓'}</th>
+    ${byPort ? '' : '<th class="num">Corr. to portfolio</th>'}
+    <th class="num">Avg corr. to holdings</th><th>${neg ? 'Most negative with' : 'Most correlated with'}</th>
+    <th class="num">Ann. return</th><th class="num">Volatility</th><th></th></tr>`;
+
+  const sorted = DIV.results.slice().sort((a,b) => neg ? rankValue(a) - rankValue(b) : rankValue(b) - rankValue(a));
   const shown = DIV.showAll ? sorted : sorted.slice(0, SHOW_TOP);
   divMore.hidden = sorted.length <= SHOW_TOP;
   divMore.textContent = DIV.showAll ? `Show top ${SHOW_TOP} only` : `Show all ${sorted.length}`;
@@ -2572,12 +2644,16 @@ function renderSuggestions() {
     const type = r.meta.decays
       ? `<span class="div-type">${r.meta.type}</span> <span class="div-decay" title="${DECAY_NOTE}">· decays</span>`
       : `<span class="div-type">${r.meta.type}</span>`;
+    const v = rankValue(r);
+    const pair = neg ? r.lowest : r.highest;
+    const pairColor = pair[1] < 0 ? COLORS.red : pair[1] >= 0.5 ? COLORS.accent : COLORS.dim;
     tr.innerHTML = `
       <td><div class="div-tk">${r.t}</div>${r.meta.name ? `<div class="div-name">${r.meta.name}</div>` : ''}</td>
       <td>${type}</td>
-      <td class="num"><span class="delta ${corrClass(r.corrPort)}">${fmtCorr(r.corrPort)}</span></td>
+      <td class="num"><span class="delta ${corrClass(v)}">${fmtCorr(v)}</span></td>
+      ${byPort ? '' : `<td class="num" style="color:${r.corrPort < 0 ? COLORS.red : COLORS.dim}">${fmtCorr(r.corrPort)}</td>`}
       <td class="num">${fmtCorr(r.avg)}</td>
-      <td class="div-pair">${r.lowest[0]} <span style="color:${r.lowest[1] < 0 ? COLORS.red : COLORS.dim}">${fmtCorr(r.lowest[1])}</span></td>
+      <td class="div-pair">${pair[0]} <span style="color:${pairColor}">${fmtCorr(pair[1])}</span></td>
       <td class="num" style="color:${r.ret < 0 ? COLORS.red : COLORS.dim}">${fmtPct(r.ret)}</td>
       <td class="num">${fmtPct(r.vol)}</td>
       <td class="num"></td>`;
